@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppHeader, type NavSection } from "@/components/AppHeader";
 import { PlSqlInputPanel } from "@/components/PlSqlInputPanel";
 import { PlSqlVisualizationPanel } from "@/components/PlSqlVisualizationPanel";
@@ -11,6 +12,7 @@ import { PlSqlHelpView } from "@/components/PlSqlHelpView";
 import { PlSqlLearnView } from "@/components/PlSqlLearnView";
 import { DevelopedByView } from "@/components/DevelopedByView";
 import { DownloadView } from "@/components/DownloadView";
+import { QuizView } from "@/components/QuizView";
 import type { HistoryItem, Tab, ThemeId } from "@/components/nlSqlTypes";
 import {
   DATASETS,
@@ -42,6 +44,7 @@ import {
 const CUSTOM_DATASETS_KEY = "nlp-sql-custom-datasets";
 
 export default function PlSqlPage() {
+  const router = useRouter();
   const [theme, setTheme] = useState<ThemeId>("slate");
   const [activeSection, setActiveSection] = useState<NavSection>("workspace");
   const [customDatasets, setCustomDatasets] = useState<Dataset[]>([]);
@@ -646,7 +649,13 @@ export default function PlSqlPage() {
         theme={theme}
         onThemeChange={handleThemeChange}
         activeSection={activeSection}
-        onSectionChange={setActiveSection}
+        onSectionChange={(section) => {
+          if (section === "quiz") {
+            router.push("/plsql/quiz");
+            return;
+          }
+          setActiveSection(section);
+        }}
         mode="plsql"
       />
 
@@ -772,6 +781,12 @@ export default function PlSqlPage() {
             history={history}
             theme={theme}
             hasExecuted={hasExecuted}
+            onBackToWorkspace={() => setActiveSection("workspace")}
+          />
+        )}
+        {activeSection === "quiz" && (
+          <QuizView
+            mode="plsql"
             onBackToWorkspace={() => setActiveSection("workspace")}
           />
         )}

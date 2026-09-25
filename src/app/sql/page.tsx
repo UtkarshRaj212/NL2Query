@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppHeader, type NavSection } from "@/components/AppHeader";
 import { InputPanel } from "@/components/InputPanel";
 import { DatasetModal } from "@/components/DatasetModal";
@@ -12,6 +13,7 @@ import { HelpView } from "@/components/HelpView";
 import { LearnView } from "@/components/LearnView";
 import { DevelopedByView } from "@/components/DevelopedByView";
 import { DownloadView } from "@/components/DownloadView";
+import { QuizView } from "@/components/QuizView";
 import {
   DATASETS,
   getDefaultSchema,
@@ -38,6 +40,7 @@ import {
 const CUSTOM_DATASETS_KEY = "nlp-sql-custom-datasets";
 
 export default function Home() {
+  const router = useRouter();
   const [theme, setTheme] = useState<ThemeId>("slate");
   const [activeSection, setActiveSection] = useState<NavSection>("workspace");
   const [customDatasets, setCustomDatasets] = useState<Dataset[]>([]);
@@ -669,7 +672,13 @@ export default function Home() {
         theme={theme}
         onThemeChange={handleThemeChange}
         activeSection={activeSection}
-        onSectionChange={setActiveSection}
+        onSectionChange={(section) => {
+          if (section === "quiz") {
+            router.push("/sql/quiz");
+            return;
+          }
+          setActiveSection(section);
+        }}
         mode="sql"
       />
 
@@ -799,7 +808,15 @@ export default function Home() {
             hasExecuted={hasExecuted}
           />
         )}
-        {activeSection === "learn" && <LearnView />}
+        {activeSection === "quiz" && (
+          <QuizView
+            mode="sql"
+            onBackToWorkspace={() => setActiveSection("workspace")}
+          />
+        )}
+        {activeSection === "learn" && (
+          <LearnView onBackToWorkspace={() => setActiveSection("workspace")} />
+        )}
         {activeSection === "help" && <HelpView />}
         {activeSection === "developedBy" && <DevelopedByView />}
       </div>

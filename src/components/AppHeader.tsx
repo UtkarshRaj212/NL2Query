@@ -6,11 +6,12 @@ import Logo from "../../public/Logo.png";
 
 import Link from "next/link";
 
-export type NavSection = "workspace" | "download" | "learn" | "help" | "developedBy";
+export type NavSection = "workspace" | "download" | "quiz" | "learn" | "help" | "developedBy";
 
 const NAV_ITEMS: { id: NavSection; label: string }[] = [
   { id: "workspace", label: "Workspace" },
   { id: "download", label: "Download" },
+  { id: "quiz", label: "Quiz" },
   { id: "learn", label: "Learn" },
   { id: "help", label: "Help" },
   { id: "developedBy", label: "Developed By" },
