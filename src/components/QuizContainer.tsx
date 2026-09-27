@@ -367,6 +367,9 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
 
   // Quiz Lifecycle State: "setup" | "active" | "finished"
   const [quizState, setQuizState] = useState<"setup" | "active" | "finished">("setup");
+  // Attempted Questions visibility (closed by default on both phone and large screens)
+  const [isAttemptedOpenMobile, setIsAttemptedOpenMobile] = useState<boolean>(false);
+  const [isAttemptedOpenDesktop, setIsAttemptedOpenDesktop] = useState<boolean>(false);
 
   // Timer Tracking for Recent Quizzes (stores time taken)
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
@@ -497,6 +500,8 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
     setCurrentIndex(0);
     setQuestionRecords({});
     setQuizStartTime(Date.now());
+    setIsAttemptedOpenMobile(false);
+    setIsAttemptedOpenDesktop(false);
     setQuizState("active");
   };
 
@@ -731,15 +736,20 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
         }}
       >
         {/* Left Side: Logo + Mode Pill + Workspace */}
-        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0 shrink-0">
           {/* Brand Logo */}
           <Link
             href={mode === "sql" ? "/sql" : "/plsql"}
             className="flex items-center gap-2 cursor-pointer focus:outline-none shrink-0"
             title="Return to Workspace"
           >
-            <Image src={Logo} alt="NL2Query Logo" className="w-8 h-8" />
-            <span className="text-base font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
+            <Image src={Logo} alt="NL2Query Logo" className="w-8 h-8 shrink-0" />
+            <span
+              className={`text-base font-bold tracking-tight whitespace-nowrap ${
+                quizState === "active" ? "hidden sm:inline" : "inline"
+              }`}
+              style={{ color: "var(--foreground)" }}
+            >
               NL2Query
             </span>
           </Link>
@@ -747,7 +757,7 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
           {/* If QUIZ IS ACTIVE: Show only clean session identifier badge. No nav links! */}
           {quizState === "active" ? (
             <span
-              className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase shrink-0"
+              className="text-[10px] sm:text-[11px] font-mono font-bold px-2 sm:px-2.5 py-0.5 rounded-full border uppercase shrink-0 whitespace-nowrap"
               style={{
                 background: mode === "sql" ? "rgba(56, 189, 248, 0.15)" : "rgba(249, 115, 22, 0.15)",
                 borderColor: mode === "sql" ? "rgba(56, 189, 248, 0.3)" : "rgba(249, 115, 22, 0.3)",
@@ -813,13 +823,13 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
         </div>
 
         {/* Right Section: Only Essential Buttons when Active (Finish Quiz & Theme). Recent button ONLY before start! */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {/* Recent Quizzes drawer toggle: ONLY VISIBLE BEFORE START (Setup / Finished) */}
           {quizState !== "active" && (
             <button
               type="button"
               onClick={() => setShowRecentDrawer((prev) => !prev)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer shadow-2xs"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
               style={{
                 background: "var(--surface-subtle)",
                 borderColor: "var(--border)",
@@ -840,7 +850,7 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
             <button
               type="button"
               onClick={() => setIsFinishModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer hover:bg-rose-500/10 text-rose-500 border-rose-500/40 active:scale-95 shadow-xs"
+              className="px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer hover:bg-rose-500/10 text-rose-500 border-rose-500/40 active:scale-95 shadow-xs whitespace-nowrap shrink-0"
             >
               Finish Quiz
             </button>
@@ -850,7 +860,7 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
           <button
             type="button"
             onClick={() => handleThemeChange(isDark ? "pearl" : "slate")}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer shadow-2xs hover:opacity-90 select-none"
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer shadow-2xs hover:opacity-90 select-none shrink-0"
             style={{
               background: "var(--surface-subtle)",
               color: "var(--foreground)",
@@ -1072,141 +1082,340 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
         {quizState === "active" && currentQuestion && (
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden w-full">
             {/* ------------------------------------------------------------- */}
-            {/* LEFT SIDEBAR: Attempted Subsection (Theme Palette + LeetCode Icons) */}
+            {/* 1. MOBILE: Attempted Questions Dropdown Section (Closed by default) */}
             {/* ------------------------------------------------------------- */}
-            <aside
-              className="w-full md:w-80 lg:w-88 border-b md:border-b-0 md:border-r flex flex-col shrink-0 overflow-hidden"
+            <div
+              className="md:hidden border-b shrink-0 z-20"
               style={{
                 background: "var(--panel)",
                 borderColor: "var(--border)",
               }}
             >
-              {/* Sidebar Header */}
-              <div
-                className="p-3.5 sm:p-4 border-b flex items-center justify-between shrink-0"
-                style={{
-                  borderColor: "var(--border)",
-                  background: "var(--surface-subtle)",
-                }}
+              <button
+                type="button"
+                onClick={() => setIsAttemptedOpenMobile((prev) => !prev)}
+                className="w-full px-4 py-2.5 flex items-center justify-between text-left cursor-pointer transition-colors hover:bg-[var(--surface-subtle)]"
+                aria-expanded={isAttemptedOpenMobile}
               >
-                <div>
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                    <span>Attempted</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
+                    <span>Attempted Questions</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] font-mono font-bold">
                       {attemptedQuestions.length} / {sessionQuestions.length}
                     </span>
-                  </h2>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-medium">
+                  <span>{isAttemptedOpenMobile ? "Hide" : "Show"}</span>
+                  <svg
+                    className={`w-4 h-4 transition-transform duration-200 ${isAttemptedOpenMobile ? "rotate-180" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+
+              {/* Mobile Expanded List */}
+              {isAttemptedOpenMobile && (
+                <div
+                  className="border-t max-h-72 overflow-y-auto p-2.5 space-y-1.5 scrollbar-thin animate-in slide-in-from-top-2 duration-150"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: "var(--surface-subtle)",
+                  }}
+                >
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 px-1 pb-1">
                     Stores and shows all attempted questions
                   </p>
-                </div>
-              </div>
 
-              {/* Sidebar Attempted Questions List */}
-              <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 scrollbar-thin">
-                {attemptedQuestions.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center p-6 text-center">
-                    <div
-                      className="w-12 h-12 rounded-2xl mb-3 flex items-center justify-center border text-xl"
-                      style={{
-                        background: "var(--surface-subtle)",
-                        borderColor: "var(--border)",
-                      }}
-                    >
-                      <span>📝</span>
+                  {attemptedQuestions.length === 0 ? (
+                    <div className="py-4 text-center">
+                      <p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
+                        No Questions Attempted Yet
+                      </p>
+                      <p className="text-[11px] mt-1 text-zinc-500 dark:text-zinc-400">
+                        Questions you submit or skip will appear here with their LeetCode status icon.
+                      </p>
                     </div>
-                    <p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
-                      No Questions Attempted Yet
-                    </p>
-                    <p className="text-[11px] mt-1 text-zinc-500 dark:text-zinc-400 max-w-[200px]">
-                      Questions you submit or skip will appear here with their LeetCode status icon.
-                    </p>
-                  </div>
-                ) : (
-                  attemptedQuestions.map((item) => {
-                    const isActive = item.originalIndex === currentIndex;
-                    const isSubmitted = item.rec?.isSubmitted;
-                    const isCorrect = item.rec?.isCorrect;
-                    const isSkipped = item.rec?.isSkipped;
+                  ) : (
+                    attemptedQuestions.map((item) => {
+                      const isActive = item.originalIndex === currentIndex;
+                      const isSubmitted = item.rec?.isSubmitted;
+                      const isCorrect = item.rec?.isCorrect;
+                      const isSkipped = item.rec?.isSkipped;
 
-                    return (
-                      <button
-                        key={item.q.id}
-                        type="button"
-                        onClick={() => setCurrentIndex(item.originalIndex)}
-                        className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${
-                          isActive
-                            ? "shadow-xs border-[var(--accent)]"
-                            : "border-transparent hover:border-[var(--border)] hover:bg-[var(--surface-subtle)]"
-                        }`}
-                        style={{
-                          background: isActive
-                            ? "rgba(var(--accent-rgb, 255, 106, 61), 0.1)"
-                            : "transparent",
-                        }}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span
-                            className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-mono font-bold shrink-0 border ${
-                              isActive
-                                ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
-                                : "bg-[var(--surface-subtle)] text-zinc-400"
-                            }`}
-                            style={{ borderColor: "var(--border)" }}
-                          >
-                            {item.originalIndex + 1}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                              {item.q.topic}
-                            </p>
+                      return (
+                        <button
+                          key={item.q.id}
+                          type="button"
+                          onClick={() => {
+                            setCurrentIndex(item.originalIndex);
+                            setIsAttemptedOpenMobile(false);
+                          }}
+                          className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                            isActive
+                              ? "shadow-xs border-[var(--accent)]"
+                              : "border-transparent hover:border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                          }`}
+                          style={{
+                            background: isActive
+                              ? "rgba(var(--accent-rgb, 255, 106, 61), 0.1)"
+                              : "var(--panel)",
+                          }}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
                             <span
-                              className="text-[10px] font-mono font-semibold"
-                              style={{
-                                color:
-                                  item.q.difficulty === "Easy"
-                                    ? "#10b981"
-                                    : item.q.difficulty === "Medium"
-                                    ? "#f59e0b"
-                                    : "#ef4444",
-                              }}
+                              className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-mono font-bold shrink-0 border ${
+                                isActive
+                                  ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
+                                  : "bg-[var(--surface-subtle)] text-zinc-400"
+                              }`}
+                              style={{ borderColor: "var(--border)" }}
                             >
-                              {item.q.difficulty} • {item.q.type.toUpperCase()}
+                              {item.originalIndex + 1}
                             </span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                                {item.q.topic}
+                              </p>
+                              <span
+                                className="text-[10px] font-mono font-semibold"
+                                style={{
+                                  color:
+                                    item.q.difficulty === "Easy"
+                                      ? "#10b981"
+                                      : item.q.difficulty === "Medium"
+                                      ? "#f59e0b"
+                                      : "#ef4444",
+                                }}
+                              >
+                                {item.q.difficulty} • {item.q.type.toUpperCase()}
+                              </span>
+                            </div>
                           </div>
-                        </div>
 
-                        {/* Right Status Icon (LeetCode style) */}
-                        <LeetCodeStatusIcon
-                          isSubmitted={isSubmitted}
-                          isCorrect={isCorrect}
-                          isSkipped={isSkipped}
-                        />
-                      </button>
-                    );
-                  })
-                )}
-              </div>
+                          <LeetCodeStatusIcon
+                            isSubmitted={isSubmitted}
+                            isCorrect={isCorrect}
+                            isSkipped={isSkipped}
+                          />
+                        </button>
+                      );
+                    })
+                  )}
 
-              {/* Sidebar Footer with LeetCode Icon Legend (clean spacing to prevent clipping) */}
+                  {/* Legend */}
+                  <div
+                    className="pt-2 mt-2 border-t flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 px-1 select-none"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Correct
+                    </span>
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Incorrect
+                    </span>
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Skipped
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ------------------------------------------------------------- */}
+            {/* 2. DESKTOP: Attempted Section (Closed by default, button below logo) */}
+            {/* ------------------------------------------------------------- */}
+            {!isAttemptedOpenDesktop ? (
               <div
-                className="p-3 sm:p-4 border-t flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 shrink-0 select-none z-10"
+                className="hidden md:flex flex-col items-center py-3.5 px-2 border-r shrink-0 transition-all select-none z-20"
                 style={{
+                  width: "3.5rem",
+                  background: "var(--panel)",
                   borderColor: "var(--border)",
-                  background: "var(--surface-subtle)",
                 }}
               >
-                <span className="flex items-center gap-1.5 font-medium">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Correct
-                </span>
-                <span className="flex items-center gap-1.5 font-medium">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Incorrect
-                </span>
-                <span className="flex items-center gap-1.5 font-medium">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Skipped
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsAttemptedOpenDesktop(true)}
+                  className="w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 border text-xs transition-all hover:scale-105 cursor-pointer shadow-2xs relative group"
+                  style={{
+                    background: "var(--surface-subtle)",
+                    borderColor: "var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                  aria-label="Open Attempted Questions panel"
+                  title={`Open Attempted Questions (${attemptedQuestions.length}/${sessionQuestions.length})`}
+                >
+                  <svg className="w-4 h-4 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  <span className="text-[9px] font-mono font-bold leading-none text-[var(--accent)]">
+                    {attemptedQuestions.length}
+                  </span>
+
+                  {/* Tooltip on hover */}
+                  <div className="absolute left-full ml-2.5 px-2.5 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-lg shadow-xl whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 flex items-center gap-1.5 border border-zinc-700">
+                    <span>Attempted Questions</span>
+                    <span className="font-mono text-sky-400">({attemptedQuestions.length}/{sessionQuestions.length})</span>
+                    <span className="text-[10px] text-zinc-400">▶</span>
+                  </div>
+                </button>
               </div>
-            </aside>
+            ) : (
+              <aside
+                className="hidden md:flex w-80 lg:w-88 border-r flex-col shrink-0 overflow-hidden animate-in slide-in-from-left-2 duration-200 z-20"
+                style={{
+                  background: "var(--panel)",
+                  borderColor: "var(--border)",
+                }}
+              >
+                {/* Sidebar Header with Collapse Button */}
+                <div
+                  className="p-3.5 sm:p-4 border-b flex items-center justify-between shrink-0"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: "var(--surface-subtle)",
+                  }}
+                >
+                  <div>
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                      <span>Attempted</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] font-mono font-bold">
+                        {attemptedQuestions.length} / {sessionQuestions.length}
+                      </span>
+                    </h2>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      Stores and shows all attempted questions
+                    </p>
+                  </div>
+
+                  {/* Collapse Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsAttemptedOpenDesktop(false)}
+                    className="p-1.5 rounded-lg border text-zinc-400 hover:text-zinc-100 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer shrink-0"
+                    style={{
+                      borderColor: "var(--border)",
+                      background: "var(--panel)",
+                    }}
+                    title="Collapse Attempted Panel"
+                    aria-label="Collapse Attempted Panel"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Sidebar Attempted Questions List */}
+                <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 scrollbar-thin">
+                  {attemptedQuestions.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center p-6 text-center">
+                      <div
+                        className="w-12 h-12 rounded-2xl mb-3 flex items-center justify-center border text-xl"
+                        style={{
+                          background: "var(--surface-subtle)",
+                          borderColor: "var(--border)",
+                        }}
+                      >
+                        <span>📝</span>
+                      </div>
+                      <p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
+                        No Questions Attempted Yet
+                      </p>
+                      <p className="text-[11px] mt-1 text-zinc-500 dark:text-zinc-400 max-w-[200px]">
+                        Questions you submit or skip will appear here with their LeetCode status icon.
+                      </p>
+                    </div>
+                  ) : (
+                    attemptedQuestions.map((item) => {
+                      const isActive = item.originalIndex === currentIndex;
+                      const isSubmitted = item.rec?.isSubmitted;
+                      const isCorrect = item.rec?.isCorrect;
+                      const isSkipped = item.rec?.isSkipped;
+
+                      return (
+                        <button
+                          key={item.q.id}
+                          type="button"
+                          onClick={() => setCurrentIndex(item.originalIndex)}
+                          className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                            isActive
+                              ? "shadow-xs border-[var(--accent)]"
+                              : "border-transparent hover:border-[var(--border)] hover:bg-[var(--surface-subtle)]"
+                          }`}
+                          style={{
+                            background: isActive
+                              ? "rgba(var(--accent-rgb, 255, 106, 61), 0.1)"
+                              : "transparent",
+                          }}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span
+                              className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-mono font-bold shrink-0 border ${
+                                isActive
+                                  ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
+                                  : "bg-[var(--surface-subtle)] text-zinc-400"
+                              }`}
+                              style={{ borderColor: "var(--border)" }}
+                            >
+                              {item.originalIndex + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                                {item.q.topic}
+                              </p>
+                              <span
+                                className="text-[10px] font-mono font-semibold"
+                                style={{
+                                  color:
+                                    item.q.difficulty === "Easy"
+                                      ? "#10b981"
+                                      : item.q.difficulty === "Medium"
+                                      ? "#f59e0b"
+                                      : "#ef4444",
+                                }}
+                              >
+                                {item.q.difficulty} • {item.q.type.toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+
+                          <LeetCodeStatusIcon
+                            isSubmitted={isSubmitted}
+                            isCorrect={isCorrect}
+                            isSkipped={isSkipped}
+                          />
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Sidebar Footer with LeetCode Icon Legend (clean spacing to prevent clipping) */}
+                <div
+                  className="p-3 sm:p-4 border-t flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 shrink-0 select-none z-10"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: "var(--surface-subtle)",
+                  }}
+                >
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Correct
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Incorrect
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Skipped
+                  </span>
+                </div>
+              </aside>
+            )}
 
             {/* ------------------------------------------------------------- */}
             {/* CENTER PANEL: 1 Question at a time Screen */}
