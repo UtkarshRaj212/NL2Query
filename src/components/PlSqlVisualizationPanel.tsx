@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Table } from "@/lib/schema";
 import type { PipelineStep, Row } from "@/lib/sqlEngine";
 import type { Tab, ThemeId } from "./nlSqlTypes";
 import { ChenERDiagram } from "./ChenERDiagram";
+import { analyzePlSqlScript } from "@/lib/plsqlAnalyzer";
 
 interface PlSqlVisualizationPanelProps {
   tab: Tab;
@@ -75,6 +76,51 @@ function getPlSqlStageBadgeClass(stage: string, isDark = true): string {
   }
 }
 
+function getWorkflowCategoryBadgeClass(category: string, isDark = true): string {
+  if (!isDark) {
+    switch (category) {
+      case "INITIALIZATION":
+        return "bg-indigo-100 text-indigo-950 border border-indigo-300 font-semibold";
+      case "CURSOR / FETCH":
+        return "bg-sky-100 text-sky-950 border border-sky-300 font-semibold";
+      case "ITERATION":
+        return "bg-amber-100 text-amber-950 border border-amber-300 font-semibold";
+      case "LOGIC / CONDITION":
+        return "bg-purple-100 text-purple-950 border border-purple-300 font-semibold";
+      case "MUTATION":
+        return "bg-rose-100 text-rose-950 border border-rose-300 font-semibold";
+      case "OUTPUT":
+        return "bg-orange-100 text-orange-950 border border-orange-400 font-bold";
+      case "EXCEPTION":
+        return "bg-red-100 text-red-950 border border-red-400 font-bold";
+      case "COMPLETION":
+        return "bg-emerald-100 text-emerald-950 border border-emerald-300 font-bold";
+      default:
+        return "bg-slate-100 text-slate-900 border border-slate-300 font-semibold";
+    }
+  }
+  switch (category) {
+    case "INITIALIZATION":
+      return "bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 font-semibold";
+    case "CURSOR / FETCH":
+      return "bg-sky-950/80 text-sky-300 border border-sky-700/60 font-semibold";
+    case "ITERATION":
+      return "bg-amber-950/80 text-amber-300 border border-amber-700/60 font-semibold";
+    case "LOGIC / CONDITION":
+      return "bg-purple-950/80 text-purple-300 border border-purple-700/60 font-semibold";
+    case "MUTATION":
+      return "bg-rose-950/80 text-rose-300 border border-rose-700/60 font-semibold";
+    case "OUTPUT":
+      return "bg-orange-950/90 text-orange-300 border border-orange-600/70 font-bold";
+    case "EXCEPTION":
+      return "bg-red-950/90 text-red-300 border border-red-600/80 font-bold";
+    case "COMPLETION":
+      return "bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-bold";
+    default:
+      return "bg-zinc-800 text-zinc-100 border border-zinc-700 font-semibold";
+  }
+}
+
 export function PlSqlVisualizationPanel({
   tab,
   onTabChange,
@@ -98,6 +144,11 @@ export function PlSqlVisualizationPanel({
 }: PlSqlVisualizationPanelProps) {
   const [outputViewMode, setOutputViewMode] = useState<"both" | "terminal" | "table">("both");
   const [copiedConsole, setCopiedConsole] = useState(false);
+
+  const analysis = useMemo(
+    () => analyzePlSqlScript(plsql, schema, steps, finalRows, dbmsOutput),
+    [plsql, schema, steps, finalRows, dbmsOutput]
+  );
 
   const handleCopyConsole = () => {
     if (dbmsOutput.length === 0) return;
@@ -609,109 +660,391 @@ export function PlSqlVisualizationPanel({
       {/* ── Tab Content: Procedural Logic Explanation ── */}
       {tab === "explanation" && (
         <div
-          className="rounded-2xl border p-5 flex flex-col gap-4"
+          className="rounded-2xl border p-5 flex flex-col gap-6"
           style={{ background: "var(--panel)", borderColor: "var(--border)" }}
         >
-          <div className={`border-b pb-3 ${dark ? "border-zinc-800" : "border-slate-200"}`}>
-            <h3 className={`text-base font-bold flex items-center gap-2 ${dark ? "text-zinc-100" : "text-black font-bold"}`}>
-              <span className="text-orange-500">✦</span>
-              <span>Procedural Flow &amp; Block Anatomy</span>
-            </h3>
-            <p className={`text-xs mt-1 ${dark ? "text-zinc-400" : "text-black font-medium opacity-80"}`}>
-              Automated procedural structural breakdown of the executed PL/SQL block.
+          {/* Header Banner */}
+          <div className={`border-b pb-4 ${dark ? "border-zinc-800" : "border-slate-200"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-orange-500 text-lg">✦</span>
+                <h3 className={`text-base font-bold ${dark ? "text-zinc-100" : "text-slate-900"}`}>
+                  Procedural Logic &amp; Operational Breakdown
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30">
+                  {analysis.procedural.blockType}
+                </span>
+              </div>
+            </div>
+            <p className={`text-xs leading-relaxed ${dark ? "text-zinc-300" : "text-slate-700 font-medium"}`}>
+              {analysis.procedural.summary}
             </p>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Card 1: Declarations (Blue in Dark, Light Blue with Black Font in Light) */}
-            <div
-              className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all ${
-                dark
-                  ? "border-zinc-800 bg-zinc-900/40"
-                  : "bg-blue-50/90 border-blue-200 shadow-xs"
-              }`}
-            >
-              <span
-                className={`text-xs uppercase tracking-wider ${
-                  dark
-                    ? "font-semibold text-indigo-400"
-                    : "font-bold text-black"
-                }`}
-              >
-                1. Declarations
+            {/* Quick Metrics Bar */}
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-dashed border-zinc-700/40">
+              <span className={`text-[11px] font-medium px-2 py-1 rounded-md border ${
+                dark ? "bg-zinc-900/80 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
+              }`}>
+                🗄️ Tables: <strong className={dark ? "text-orange-400" : "text-orange-700"}>{analysis.procedural.tablesUsed.length}</strong>
               </span>
-              <p
-                className={`text-xs leading-relaxed ${
-                  dark ? "text-zinc-300" : "text-black font-normal"
-                }`}
-              >
-                Allocates memory variables, constants, and sets up explicit or implicit cursors in the private SQL area before execution commences.
-              </p>
-            </div>
-
-            {/* Card 2: Control Flow & Loops (Yellow in Dark, Light Yellow with Black Font in Light) */}
-            <div
-              className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all ${
-                dark
-                  ? "border-zinc-800 bg-zinc-900/40"
-                  : "bg-amber-50/90 border-amber-200 shadow-xs"
-              }`}
-            >
-              <span
-                className={`text-xs uppercase tracking-wider ${
-                  dark
-                    ? "font-semibold text-amber-400"
-                    : "font-bold text-black"
-                }`}
-              >
-                2. Control Flow &amp; Loops
+              <span className={`text-[11px] font-medium px-2 py-1 rounded-md border ${
+                dark ? "bg-zinc-900/80 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
+              }`}>
+                📦 Variables: <strong className={dark ? "text-indigo-400" : "text-indigo-700"}>{analysis.procedural.variables.length}</strong>
               </span>
-              <p
-                className={`text-xs leading-relaxed ${
-                  dark ? "text-zinc-300" : "text-black font-normal"
-                }`}
-              >
-                Executes procedural branching (IF-THEN-ELSIF), cursor traversal loops, variable assignment arithmetic, and embedded DML updates.
-              </p>
-            </div>
-
-            {/* Card 3: Exception & Output (Pink in Dark, Light Pink with Black Font in Light) */}
-            <div
-              className={`p-3 rounded-xl border flex flex-col gap-1.5 transition-all ${
-                dark
-                  ? "border-zinc-800 bg-zinc-900/40"
-                  : "bg-rose-50/90 border-rose-200 shadow-xs"
-              }`}
-            >
-              <span
-                className={`text-xs uppercase tracking-wider ${
-                  dark
-                    ? "font-semibold text-rose-400"
-                    : "font-bold text-black"
-                }`}
-              >
-                3. Exception &amp; Output
+              <span className={`text-[11px] font-medium px-2 py-1 rounded-md border ${
+                dark ? "bg-zinc-900/80 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
+              }`}>
+                ⚡ Cursors: <strong className={dark ? "text-sky-400" : "text-sky-700"}>{analysis.procedural.cursors.length}</strong>
               </span>
-              <p
-                className={`text-xs leading-relaxed ${
-                  dark ? "text-zinc-300" : "text-black font-normal"
-                }`}
-              >
-                Captures runtime exceptions (e.g., NO_DATA_FOUND, TOO_MANY_ROWS), logs diagnostic feedback to DBMS_OUTPUT, and commits state atomically.
-              </p>
+              <span className={`text-[11px] font-medium px-2 py-1 rounded-md border ${
+                dark ? "bg-zinc-900/80 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
+              }`}>
+                🔄 Steps: <strong className={dark ? "text-amber-400" : "text-amber-700"}>{analysis.procedural.workflowSteps.length}</strong>
+              </span>
+              <span className={`text-[11px] font-medium px-2 py-1 rounded-md border ${
+                dark ? "bg-zinc-900/80 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
+              }`}>
+                📟 DBMS Output: <strong className={dark ? "text-emerald-400" : "text-emerald-700"}>{analysis.procedural.outputMessagesCount} lines</strong>
+              </span>
             </div>
           </div>
 
+          {/* Section 1: Targeted Schema Tables & Relational Operations */}
+          <div className="flex flex-col gap-3">
+            <h4 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+              dark ? "text-zinc-200" : "text-slate-900"
+            }`}>
+              <span>1. Targeted Schema Tables &amp; Operations</span>
+              <span className={`text-[10px] normal-case font-normal px-2 py-0.5 rounded-full border ${
+                dark ? "bg-zinc-800 text-zinc-400 border-zinc-700" : "bg-slate-100 text-slate-600 border-slate-300"
+              }`}>
+                Analyzed from active script &amp; database schema
+              </span>
+            </h4>
+
+            {analysis.procedural.tablesUsed.length === 0 ? (
+              <div className={`p-4 rounded-xl border text-xs ${
+                dark ? "border-zinc-800 bg-zinc-900/40 text-zinc-400" : "border-slate-200 bg-slate-50 text-slate-600"
+              }`}>
+                Pure procedural computation block; no relational database tables queried or modified.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {analysis.procedural.tablesUsed.map((tbl, i) => (
+                  <div
+                    key={`${tbl.tableName}-${i}`}
+                    className={`p-3.5 rounded-xl border flex flex-col gap-2 transition-all ${
+                      dark
+                        ? "border-zinc-800/80 bg-zinc-900/40 hover:border-zinc-700"
+                        : "border-slate-200 bg-white hover:border-slate-300 shadow-2xs"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">📁</span>
+                        <span className={`font-mono text-xs font-bold ${dark ? "text-zinc-100" : "text-slate-900"}`}>
+                          {tbl.tableName}
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded border ${
+                        tbl.operation.includes("UPDATE") || tbl.operation.includes("INSERT") || tbl.operation.includes("DELETE")
+                          ? dark ? "bg-rose-950/80 text-rose-300 border-rose-700/60" : "bg-rose-100 text-rose-950 border-rose-300 font-bold"
+                          : tbl.operation.includes("CURSOR")
+                            ? dark ? "bg-sky-950/80 text-sky-300 border-sky-700/60" : "bg-sky-100 text-sky-950 border-sky-300 font-bold"
+                            : dark ? "bg-indigo-950/80 text-indigo-300 border-indigo-700/60" : "bg-indigo-100 text-indigo-950 border-indigo-300 font-bold"
+                      }`}>
+                        {tbl.operation}
+                      </span>
+                    </div>
+
+                    {tbl.columns.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className={`text-[10px] font-medium ${dark ? "text-zinc-400" : "text-slate-600"}`}>
+                          Columns:
+                        </span>
+                        {tbl.columns.map((col) => (
+                          <span
+                            key={col}
+                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                              dark ? "bg-zinc-800/80 text-zinc-300 border-zinc-700" : "bg-slate-100 text-slate-800 border-slate-200 font-medium"
+                            }`}
+                          >
+                            {col}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {tbl.filterCondition && (
+                      <div className={`text-[11px] font-mono px-2 py-1 rounded border mt-0.5 ${
+                        dark ? "bg-zinc-950/70 text-amber-300/90 border-amber-900/40" : "bg-amber-50 text-amber-950 border-amber-200 font-medium"
+                      }`}>
+                        WHERE: {tbl.filterCondition}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-zinc-800/40">
+                      <span className={dark ? "text-zinc-400" : "text-slate-500 font-medium"}>
+                        Active Volume:
+                      </span>
+                      <span className={`font-semibold ${dark ? "text-zinc-300" : "text-slate-900"}`}>
+                        {tbl.rowCount} records loaded
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Memory Variables & Cursor Allocations */}
+          <div className="flex flex-col gap-3">
+            <h4 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+              dark ? "text-zinc-200" : "text-slate-900"
+            }`}>
+              <span>2. Memory Declarations &amp; Work Area Setup</span>
+              <span className={`text-[10px] normal-case font-normal px-2 py-0.5 rounded-full border ${
+                dark ? "bg-zinc-800 text-zinc-400 border-zinc-700" : "bg-slate-100 text-slate-600 border-slate-300"
+              }`}>
+                PGA memory structures allocated for this execution
+              </span>
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Variables */}
+              <div className={`p-4 rounded-xl border flex flex-col gap-2.5 ${
+                dark ? "border-zinc-800/80 bg-zinc-900/40" : "border-slate-200 bg-white shadow-2xs"
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-bold flex items-center gap-1.5 ${dark ? "text-indigo-400" : "text-indigo-900 font-bold"}`}>
+                    <span>📦</span>
+                    <span>Declared Variables ({analysis.procedural.variables.length})</span>
+                  </span>
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                    dark ? "bg-indigo-950/80 text-indigo-300 border-indigo-800/60" : "bg-indigo-50 text-indigo-900 border-indigo-200"
+                  }`}>
+                    PGA Scalar Memory
+                  </span>
+                </div>
+
+                {analysis.procedural.variables.length === 0 ? (
+                  <p className={`text-xs italic ${dark ? "text-zinc-500" : "text-slate-500"}`}>
+                    No explicit variables declared in DECLARE block.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {analysis.procedural.variables.map((v) => (
+                      <div
+                        key={v.name}
+                        className={`p-2.5 rounded-lg border flex flex-col gap-1 text-xs ${
+                          dark ? "border-zinc-800 bg-zinc-950/60" : "border-slate-200 bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`font-mono font-bold ${dark ? "text-zinc-100" : "text-slate-900"}`}>
+                            {v.name}
+                          </span>
+                          <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${
+                            dark ? "bg-zinc-800 text-indigo-300 border-zinc-700" : "bg-white text-indigo-900 border-slate-300 font-semibold"
+                          }`}>
+                            {v.type}
+                          </span>
+                        </div>
+                        <p className={`text-[11px] leading-relaxed ${dark ? "text-zinc-300" : "text-slate-700"}`}>
+                          {v.purpose}
+                        </p>
+                        {v.defaultValue && (
+                          <div className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                            dark ? "text-zinc-400 bg-zinc-900" : "text-slate-600 bg-slate-200"
+                          }`}>
+                            Initial: {v.defaultValue}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Cursors */}
+              <div className={`p-4 rounded-xl border flex flex-col gap-2.5 ${
+                dark ? "border-zinc-800/80 bg-zinc-900/40" : "border-slate-200 bg-white shadow-2xs"
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-bold flex items-center gap-1.5 ${dark ? "text-sky-400" : "text-sky-900 font-bold"}`}>
+                    <span>⚡</span>
+                    <span>Cursor Work Areas ({analysis.procedural.cursors.length})</span>
+                  </span>
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                    dark ? "bg-sky-950/80 text-sky-300 border-sky-800/60" : "bg-sky-50 text-sky-900 border-sky-200"
+                  }`}>
+                    Private SQL Area
+                  </span>
+                </div>
+
+                {analysis.procedural.cursors.length === 0 ? (
+                  <p className={`text-xs italic ${dark ? "text-zinc-500" : "text-slate-500"}`}>
+                    No explicit cursor declared; procedural logic executes via direct SQL or implicit cursors.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {analysis.procedural.cursors.map((c) => (
+                      <div
+                        key={c.name}
+                        className={`p-2.5 rounded-lg border flex flex-col gap-1.5 text-xs ${
+                          dark ? "border-zinc-800 bg-zinc-950/60" : "border-slate-200 bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`font-mono font-bold ${dark ? "text-sky-300" : "text-sky-900"}`}>
+                            CURSOR {c.name}
+                          </span>
+                          {c.targetTable && (
+                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                              dark ? "bg-zinc-800 text-zinc-300 border-zinc-700" : "bg-white text-slate-800 border-slate-300"
+                            }`}>
+                              → {c.targetTable}
+                            </span>
+                          )}
+                        </div>
+                        <pre className={`text-[11px] font-mono p-2 rounded overflow-x-auto ${
+                          dark ? "bg-black/60 text-zinc-200" : "bg-slate-900 text-slate-100"
+                        }`}>
+                          {c.query}
+                        </pre>
+                        {c.filterCondition && (
+                          <div className={`text-[10px] font-mono ${dark ? "text-amber-400" : "text-amber-800 font-medium"}`}>
+                            Predicate: {c.filterCondition}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Sequential Procedural Workflow Timeline */}
+          <div className="flex flex-col gap-3">
+            <h4 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+              dark ? "text-zinc-200" : "text-slate-900"
+            }`}>
+              <span>3. Sequential Procedural Workflow</span>
+              <span className={`text-[10px] normal-case font-normal px-2 py-0.5 rounded-full border ${
+                dark ? "bg-zinc-800 text-zinc-400 border-zinc-700" : "bg-slate-100 text-slate-600 border-slate-300"
+              }`}>
+                Step-by-step logic execution order
+              </span>
+            </h4>
+
+            <div className="flex flex-col gap-2.5">
+              {analysis.procedural.workflowSteps.map((ws) => (
+                <div
+                  key={ws.stepNumber}
+                  className={`p-3.5 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all ${
+                    dark
+                      ? "border-zinc-800/80 bg-zinc-900/40 hover:border-zinc-700"
+                      : "border-slate-200 bg-white hover:border-slate-300 shadow-2xs"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
+                      dark ? "bg-zinc-800 text-orange-400 border border-zinc-700" : "bg-orange-100 text-orange-950 border border-orange-300 font-bold"
+                    }`}>
+                      {ws.stepNumber}
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-xs font-bold ${dark ? "text-zinc-100" : "text-slate-900"}`}>
+                          {ws.title}
+                        </span>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${getWorkflowCategoryBadgeClass(ws.category, dark)}`}>
+                          {ws.category}
+                        </span>
+                      </div>
+                      <p className={`text-xs leading-relaxed ${dark ? "text-zinc-300" : "text-slate-700 font-normal"}`}>
+                        {ws.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {ws.targetObject && (
+                    <div className={`shrink-0 text-[10px] font-mono px-2.5 py-1 rounded border self-start md:self-center ${
+                      dark ? "bg-zinc-950/70 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
+                    }`}>
+                      Target: {ws.targetObject}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 4: Operational Notes & Side Effects (if any) */}
+          {(analysis.procedural.hasConditionals || analysis.procedural.hasMutations || analysis.procedural.hasExceptions) && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {analysis.procedural.hasConditionals && (
+                <div className={`p-3 rounded-xl border flex flex-col gap-1.5 ${
+                  dark ? "border-purple-900/50 bg-purple-950/20 text-purple-200" : "border-purple-200 bg-purple-50/80 text-purple-950 shadow-2xs"
+                }`}>
+                  <span className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                    Conditional Branching
+                  </span>
+                  <ul className="text-xs list-disc list-inside space-y-1">
+                    {analysis.procedural.conditionalNotes?.map((note, idx) => (
+                      <li key={idx}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {analysis.procedural.hasMutations && (
+                <div className={`p-3 rounded-xl border flex flex-col gap-1.5 ${
+                  dark ? "border-rose-900/50 bg-rose-950/20 text-rose-200" : "border-rose-200 bg-rose-50/80 text-rose-950 shadow-2xs"
+                }`}>
+                  <span className="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                    DML Mutations
+                  </span>
+                  <ul className="text-xs list-disc list-inside space-y-1">
+                    {analysis.procedural.mutationNotes?.map((note, idx) => (
+                      <li key={idx}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {analysis.procedural.hasExceptions && (
+                <div className={`p-3 rounded-xl border flex flex-col gap-1.5 ${
+                  dark ? "border-red-900/50 bg-red-950/20 text-red-200" : "border-red-200 bg-red-50/80 text-red-950 shadow-2xs"
+                }`}>
+                  <span className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+                    Exception Traps
+                  </span>
+                  <ul className="text-xs list-disc list-inside space-y-1">
+                    {analysis.procedural.exceptionNotes?.map((note, idx) => (
+                      <li key={idx}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Section 5: Active Script Code Box */}
           <div
             className={`p-3.5 rounded-xl border flex flex-col gap-2.5 shadow-2xs ${
               dark
                 ? "border-zinc-800/80 bg-zinc-900/50"
-                : "border-slate-300 bg-slate-200/70"
+                : "border-slate-300 bg-slate-100"
             }`}
           >
             <div className="flex items-center justify-between">
               <span className={`text-xs font-bold ${dark ? "text-zinc-200" : "text-slate-900"}`}>
-                Active Script:
+                Source Script Analyzed:
               </span>
               <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30">
                 PL/SQL Block
@@ -733,74 +1066,227 @@ export function PlSqlVisualizationPanel({
       {/* ── Tab Content: PL/SQL Theory ── */}
       {tab === "theory" && (
         <div
-          className="rounded-2xl border p-5 flex flex-col gap-5"
+          className="rounded-2xl border p-5 flex flex-col gap-6"
           style={{ background: "var(--panel)", borderColor: "var(--border)" }}
         >
-          <div className={`border-b pb-3 ${dark ? "border-zinc-800" : "border-slate-200"}`}>
-            <h3 className={`text-base font-bold flex items-center gap-2 ${dark ? "text-zinc-100" : "text-black font-bold"}`}>
-              <span className="text-orange-500">⚡</span>
-              <span>PL/SQL Engine &amp; Oracle Architecture</span>
-            </h3>
-            <p className={`text-xs mt-1 ${dark ? "text-zinc-400" : "text-black opacity-80"}`}>
-              Comprehensive theory on procedural database engines, runtime mechanics, and comparison with declarative SQL.
+          {/* Header Banner */}
+          <div className={`border-b pb-4 ${dark ? "border-zinc-800" : "border-slate-200"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-orange-500 text-lg">⚡</span>
+                <h3 className={`text-base font-bold ${dark ? "text-zinc-100" : "text-slate-900"}`}>
+                  PL/SQL Theory &amp; Command Mechanics
+                </h3>
+              </div>
+              <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30">
+                Command-Specific Analysis
+              </span>
+            </div>
+            <p className={`text-xs leading-relaxed ${dark ? "text-zinc-300" : "text-slate-700 font-medium"}`}>
+              {analysis.theory.scriptOverview}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className={`p-4 rounded-xl border flex flex-col gap-2 ${
-              dark
-                ? "border-zinc-800 bg-zinc-900/40 text-zinc-300"
-                : "border-orange-200 bg-orange-50/60 text-black shadow-2xs"
+          {/* Section 1: Specific Keywords & Commands Used in This Script */}
+          <div className="flex flex-col gap-3">
+            <h4 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+              dark ? "text-zinc-200" : "text-slate-900"
             }`}>
-              <h4 className={`text-xs font-bold uppercase tracking-wide ${dark ? "text-orange-400" : "text-orange-700"}`}>
-                Procedural vs Declarative Execution
-              </h4>
-              <p className="text-xs leading-relaxed">
-                Standard SQL is <strong>declarative</strong>: it specifies <em>what</em> data to retrieve, leaving the execution strategy to the cost-based optimizer.
-                PL/SQL is <strong>procedural</strong>: it gives the engineer explicit control over <em>how</em> steps execute, allowing loops, conditional branching, stateful cursor traversal, and error trapping.
+              <span>1. Commands &amp; Keywords Employed in This Script</span>
+              <span className={`text-[10px] normal-case font-normal px-2 py-0.5 rounded-full border ${
+                dark ? "bg-zinc-800 text-zinc-400 border-zinc-700" : "bg-slate-100 text-slate-600 border-slate-300"
+              }`}>
+                Theoretical mechanics for each active command
+              </span>
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {analysis.theory.keywordsUsed.map((kw, i) => (
+                <div
+                  key={`${kw.keyword}-${i}`}
+                  className={`p-4 rounded-xl border flex flex-col gap-2.5 transition-all ${
+                    dark
+                      ? "border-zinc-800 bg-zinc-900/40 hover:border-zinc-700"
+                      : "border-slate-200 bg-white hover:border-slate-300 shadow-2xs"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${
+                      dark ? "bg-orange-950/80 text-orange-300 border-orange-700/60" : "bg-orange-100 text-orange-950 border-orange-300 font-bold"
+                    }`}>
+                      {kw.keyword}
+                    </span>
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded border truncate max-w-[200px] ${
+                      dark ? "bg-zinc-800/80 text-zinc-400 border-zinc-700" : "bg-slate-100 text-slate-700 border-slate-300 font-medium"
+                    }`}>
+                      {kw.syntaxInScript}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${
+                      dark ? "text-zinc-400" : "text-slate-500"
+                    }`}>
+                      Theoretical Concept
+                    </span>
+                    <p className={`text-xs leading-relaxed ${dark ? "text-zinc-300" : "text-slate-800"}`}>
+                      {kw.theoreticalConcept}
+                    </p>
+                  </div>
+
+                  <div className={`p-2.5 rounded-lg border flex flex-col gap-1 ${
+                    dark ? "bg-zinc-950/60 border-zinc-800" : "bg-slate-50 border-slate-200"
+                  }`}>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                      dark ? "text-sky-400" : "text-sky-800"
+                    }`}>
+                      Internal Engine Workflow
+                    </span>
+                    <p className={`text-[11px] leading-relaxed ${dark ? "text-zinc-300" : "text-slate-700"}`}>
+                      {kw.engineWorkflow}
+                    </p>
+                  </div>
+
+                  <div className={`text-[11px] leading-relaxed pt-1 ${
+                    dark ? "text-white" : "text-slate-800"
+                  }`}>
+                    <strong className={dark ? "text-emerald-400" : "text-emerald-600"}>Best Practice: </strong>
+                    {kw.bestPractices}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Engine Collaboration & Context Switching */}
+          <div className="flex flex-col gap-3">
+            <h4 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+              dark ? "text-zinc-200" : "text-slate-900"
+            }`}>
+              <span>2. Engine Collaboration &amp; Context Switching</span>
+              <span className={`text-[10px] normal-case font-normal px-2 py-0.5 rounded-full border ${
+                dark ? "bg-zinc-800 text-zinc-400 border-zinc-700" : "bg-slate-100 text-slate-600 border-slate-300"
+              }`}>
+                PL/SQL Procedural VM vs SQL Relational Engine
+              </span>
+            </h4>
+
+            <div className={`p-4 rounded-xl border flex flex-col gap-3 ${
+              dark ? "border-zinc-800/80 bg-zinc-900/40" : "border-slate-200 bg-white shadow-2xs"
+            }`}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className={`p-3 rounded-lg border flex flex-col gap-1.5 ${
+                  dark ? "bg-zinc-950/60 border-zinc-800" : "bg-slate-50 border-slate-200"
+                }`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                    dark ? "text-indigo-400" : "text-indigo-900"
+                  }`}>
+                    PL/SQL Engine (Procedural VM)
+                  </span>
+                  <p className={`text-xs leading-relaxed ${dark ? "text-zinc-300" : "text-slate-800"}`}>
+                    {analysis.theory.engineCollaboration.plsqlEngineRole}
+                  </p>
+                </div>
+
+                <div className={`p-3 rounded-lg border flex flex-col gap-1.5 ${
+                  dark ? "bg-zinc-950/60 border-zinc-800" : "bg-slate-50 border-slate-200"
+                }`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                    dark ? "text-sky-400" : "text-sky-900"
+                  }`}>
+                    SQL Engine (Relational)
+                  </span>
+                  <p className={`text-xs leading-relaxed ${dark ? "text-zinc-300" : "text-slate-800"}`}>
+                    {analysis.theory.engineCollaboration.sqlEngineRole}
+                  </p>
+                </div>
+
+                <div className={`p-3 rounded-lg border flex flex-col gap-1.5 ${
+                  dark ? "bg-zinc-950/60 border-zinc-800" : "bg-slate-50 border-slate-200"
+                }`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                    dark ? "text-amber-400" : "text-amber-900"
+                  }`}>
+                    Context Switch Profile
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-mono font-bold ${dark ? "text-zinc-100" : "text-slate-900"}`}>
+                      {analysis.theory.engineCollaboration.contextSwitchCount}
+                    </span>
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                      analysis.theory.engineCollaboration.efficiencyRating.includes("High") || analysis.theory.engineCollaboration.efficiencyRating.includes("Bulk")
+                        ? dark ? "bg-emerald-950/80 text-emerald-300 border-emerald-700/60" : "bg-emerald-100 text-emerald-950 border-emerald-300 font-bold"
+                        : dark ? "bg-amber-950/80 text-amber-300 border-amber-700/60" : "bg-amber-100 text-amber-950 border-amber-300 font-bold"
+                    }`}>
+                      {analysis.theory.engineCollaboration.efficiencyRating}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <p className={`text-xs leading-relaxed pt-2 border-t ${
+                dark ? "border-zinc-800 text-zinc-300" : "border-slate-200 text-slate-700"
+              }`}>
+                {analysis.theory.engineCollaboration.explanation}
               </p>
             </div>
+          </div>
 
-            <div className={`p-4 rounded-xl border flex flex-col gap-2 ${
-              dark
-                ? "border-zinc-800 bg-zinc-900/40 text-zinc-300"
-                : "border-sky-200 bg-sky-50/60 text-black shadow-2xs"
+          {/* Section 3: Oracle Memory Architecture & PGA Allocations */}
+          <div className="flex flex-col gap-3">
+            <h4 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+              dark ? "text-zinc-200" : "text-slate-900"
             }`}>
-              <h4 className={`text-xs font-bold uppercase tracking-wide ${dark ? "text-sky-400" : "text-sky-700"}`}>
-                Context Switching &amp; Engine Collaboration
-              </h4>
-              <p className="text-xs leading-relaxed">
-                When a PL/SQL block runs, the <strong>PL/SQL engine</strong> executes procedural logic (loops, assignments, conditions) and sends embedded SQL statements to the <strong>SQL engine</strong>.
-                Minimizing context switching (e.g., through cursor FOR loops or batch operations) maximizes throughput.
-              </p>
-            </div>
+              <span>3. Oracle Memory Architecture (PGA &amp; Work Areas)</span>
+              <span className={`text-[10px] normal-case font-normal px-2 py-0.5 rounded-full border ${
+                dark ? "bg-zinc-800 text-zinc-400 border-zinc-700" : "bg-slate-100 text-slate-600 border-slate-300"
+              }`}>
+                Memory structures leveraged during execution
+              </span>
+            </h4>
 
-            <div className={`p-4 rounded-xl border flex flex-col gap-2 ${
-              dark
-                ? "border-zinc-800 bg-zinc-900/40 text-zinc-300"
-                : "border-emerald-200 bg-emerald-50/60 text-black shadow-2xs"
-            }`}>
-              <h4 className={`text-xs font-bold uppercase tracking-wide ${dark ? "text-emerald-400" : "text-emerald-700"}`}>
-                Cursor Mechanics &amp; Memory Work Areas
-              </h4>
-              <p className="text-xs leading-relaxed">
-                An Oracle cursor is a pointer to the <strong>Private SQL Area</strong> in the Program Global Area (PGA).
-                Explicit cursors allow fine-grained lifecycle management (<code>OPEN</code>, <code>FETCH</code>, <code>CLOSE</code>) with state attributes like <code>%FOUND</code>, <code>%NOTFOUND</code>, and <code>%ROWCOUNT</code>.
-              </p>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className={`p-4 rounded-xl border flex flex-col gap-2 ${
+                dark ? "border-zinc-800 bg-zinc-900/40 text-zinc-300" : "border-slate-200 bg-white text-slate-800 shadow-2xs"
+              }`}>
+                <h5 className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 ${
+                  dark ? "text-indigo-400" : "text-indigo-900 font-bold"
+                }`}>
+                  <span>🧠</span>
+                  <span>PGA Allocation</span>
+                </h5>
+                <p className="text-xs leading-relaxed">
+                  {analysis.theory.memoryArchitecture.pgaAllocation}
+                </p>
+              </div>
 
-            <div className={`p-4 rounded-xl border flex flex-col gap-2 ${
-              dark
-                ? "border-zinc-800 bg-zinc-900/40 text-zinc-300"
-                : "border-purple-200 bg-purple-50/60 text-black shadow-2xs"
-            }`}>
-              <h4 className={`text-xs font-bold uppercase tracking-wide ${dark ? "text-purple-400" : "text-purple-700"}`}>
-                DBMS_OUTPUT Architecture
-              </h4>
-              <p className="text-xs leading-relaxed">
-                <code>DBMS_OUTPUT.PUT_LINE</code> buffers text messages into an internal memory buffer.
-                The client workspace retrieves the buffered messages following successful block completion, enabling rich runtime logging, debugging, and audit output.
-              </p>
+              <div className={`p-4 rounded-xl border flex flex-col gap-2 ${
+                dark ? "border-zinc-800 bg-zinc-900/40 text-zinc-300" : "border-slate-200 bg-white text-slate-800 shadow-2xs"
+              }`}>
+                <h5 className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 ${
+                  dark ? "text-sky-400" : "text-sky-900 font-bold"
+                }`}>
+                  <span>📁</span>
+                  <span>Private SQL Area</span>
+                </h5>
+                <p className="text-xs leading-relaxed">
+                  {analysis.theory.memoryArchitecture.cursorWorkArea}
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border flex flex-col gap-2 ${
+                dark ? "border-zinc-800 bg-zinc-900/40 text-zinc-300" : "border-slate-200 bg-white text-slate-800 shadow-2xs"
+              }`}>
+                <h5 className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 ${
+                  dark ? "text-orange-400" : "text-orange-900 font-bold"
+                }`}>
+                  <span>📟</span>
+                  <span>DBMS_OUTPUT Buffer</span>
+                </h5>
+                <p className="text-xs leading-relaxed">
+                  {analysis.theory.memoryArchitecture.bufferState}
+                </p>
+              </div>
             </div>
           </div>
         </div>
