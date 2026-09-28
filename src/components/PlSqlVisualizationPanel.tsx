@@ -96,7 +96,7 @@ export function PlSqlVisualizationPanel({
   theme = "slate",
   hasExecuted = false,
 }: PlSqlVisualizationPanelProps) {
-  const [outputViewMode, setOutputViewMode] = useState<"terminal" | "table">("terminal");
+  const [outputViewMode, setOutputViewMode] = useState<"both" | "terminal" | "table">("both");
   const [copiedConsole, setCopiedConsole] = useState(false);
 
   const handleCopyConsole = () => {
@@ -255,116 +255,181 @@ export function PlSqlVisualizationPanel({
 
               {/* Current Step Description Card */}
               {current && (
-                <div className={`p-3 rounded-xl border flex flex-col gap-1 text-xs ${
+                <div className={`p-3 rounded-xl border flex flex-col gap-2 text-xs ${
                   dark
                     ? "bg-zinc-900/60 border-zinc-800/80"
                     : "bg-orange-50/70 border-orange-200"
                 }`}>
-                  <div className={`font-semibold flex items-center gap-2 ${dark ? "text-zinc-200" : "text-black font-bold"}`}>
-                    <span>{current.title}</span>
+                  <div className="flex items-center justify-between">
+                    <div className={`font-semibold flex items-center gap-2 ${dark ? "text-zinc-200" : "text-black font-bold"}`}>
+                      <span>{current.title}</span>
+                    </div>
+                    {current.rows && current.rows.length > 0 && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+                        dark
+                          ? "bg-zinc-800 text-zinc-300 border border-zinc-700"
+                          : "bg-orange-100 text-orange-950 border border-orange-300 font-semibold"
+                      }`}>
+                        {current.rows.length} tuple(s) in step
+                      </span>
+                    )}
                   </div>
                   <p className={`font-mono text-[11px] leading-relaxed ${dark ? "text-zinc-400" : "text-slate-800"}`}>
                     {current.detail}
                   </p>
+
+                  {/* Step data rows preview if available and not on the last commit step (which is already shown below) */}
+                  {current.stage !== "COMMIT" && current.rows && current.rows.length > 0 && current.columns && current.columns.length > 0 && (
+                    <div className="mt-1 overflow-x-auto max-h-36 rounded-lg border border-[var(--border)]">
+                      <table className="w-full text-left text-[11px] border-collapse">
+                        <thead>
+                          <tr className={dark ? "bg-zinc-800/90 text-zinc-300" : "bg-orange-100 text-black font-bold"}>
+                            {current.columns.map((c) => (
+                              <th key={c} className="px-2.5 py-1 font-semibold uppercase text-[10px]">
+                                {c}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {current.rows.slice(0, 6).map((row, rIdx) => (
+                            <tr key={rIdx} className={`border-t border-[var(--border)] ${dark ? "hover:bg-zinc-800/40" : "hover:bg-orange-50"}`}>
+                              {current.columns.map((c) => (
+                                <td key={c} className="px-2.5 py-1 font-mono text-[11px]">
+                                  {String(row[c] ?? "")}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          {/* DBMS_OUTPUT Terminal & Result Table Container */}
-          <div
-            className="rounded-2xl border flex flex-col overflow-hidden transition-all shadow-sm"
-            style={{ background: "var(--panel)", borderColor: "var(--border)" }}
-          >
-            {/* Console Sub-header */}
+          {/* View Mode Toggle Header */}
+          <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-semibold ${dark ? "text-zinc-300" : "text-slate-800 font-bold"}`}>
+                Execution Results View:
+              </span>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-medium ${
+                dark
+                  ? "bg-zinc-800 text-orange-400 border border-zinc-700"
+                  : "bg-orange-100 text-orange-900 border border-orange-300 font-bold"
+              }`}>
+                {dbmsOutput.length} output line(s) • {finalRows.length} table record(s)
+              </span>
+            </div>
+
+            <div className={`flex items-center rounded-lg border p-0.5 text-xs ${
+              dark ? "border-zinc-700/60 bg-zinc-800/40" : "border-slate-300 bg-slate-100"
+            }`}>
+              <button
+                type="button"
+                onClick={() => setOutputViewMode("both")}
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  outputViewMode === "both"
+                    ? "bg-orange-600 text-white font-semibold shadow-xs"
+                    : dark
+                      ? "text-zinc-400 hover:text-zinc-200"
+                      : "text-slate-700 hover:text-black font-semibold"
+                }`}
+              >
+                Split (Both)
+              </button>
+              <button
+                type="button"
+                onClick={() => setOutputViewMode("terminal")}
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  outputViewMode === "terminal"
+                    ? "bg-orange-600 text-white font-semibold shadow-xs"
+                    : dark
+                      ? "text-zinc-400 hover:text-zinc-200"
+                      : "text-slate-700 hover:text-black font-semibold"
+                }`}
+              >
+                Console
+              </button>
+              <button
+                type="button"
+                onClick={() => setOutputViewMode("table")}
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  outputViewMode === "table"
+                    ? "bg-orange-600 text-white font-semibold shadow-xs"
+                    : dark
+                      ? "text-zinc-400 hover:text-zinc-200"
+                      : "text-slate-700 hover:text-black font-semibold"
+                }`}
+              >
+                Table
+              </button>
+            </div>
+          </div>
+
+          {/* 1. DBMS_OUTPUT Terminal Card */}
+          {(outputViewMode === "both" || outputViewMode === "terminal") && (
             <div
-              className={`p-3 border-b flex items-center justify-between gap-3 ${
-                dark ? "bg-zinc-900/40" : "bg-slate-50"
-              }`}
-              style={{ borderColor: "var(--border)" }}
+              className="rounded-2xl border flex flex-col overflow-hidden transition-all shadow-sm"
+              style={{ background: "var(--panel)", borderColor: "var(--border)" }}
             >
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-red-500/80 inline-block" />
-                  <span className="w-3 h-3 rounded-full bg-yellow-500/80 inline-block" />
-                  <span className="w-3 h-3 rounded-full bg-green-500/80 inline-block" />
-                </div>
-                <span className={`text-xs font-mono font-semibold ml-1 ${dark ? "text-zinc-300" : "text-black font-bold"}`}>
-                  DBMS_OUTPUT Terminal
-                </span>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono ${
-                  dark
-                    ? "bg-orange-950/60 text-orange-400 border border-orange-800/40"
-                    : "bg-orange-100 text-orange-900 border border-orange-300 font-bold"
-                }`}>
-                  {dbmsOutput.length} line(s)
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {/* View Mode Toggle: Terminal vs Table */}
-                <div className={`flex items-center rounded-lg border p-0.5 text-xs ${
-                  dark ? "border-zinc-700/60 bg-zinc-800/40" : "border-slate-300 bg-slate-100"
-                }`}>
-                  <button
-                    type="button"
-                    onClick={() => setOutputViewMode("terminal")}
-                    className={`px-2.5 py-0.5 rounded-md font-medium transition-colors ${
-                      outputViewMode === "terminal"
-                        ? "bg-orange-600 text-white font-semibold shadow-xs"
-                        : dark
-                          ? "text-zinc-400 hover:text-zinc-200"
-                          : "text-slate-700 hover:text-black font-semibold"
-                    }`}
-                  >
-                    Console
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOutputViewMode("table")}
-                    className={`px-2.5 py-0.5 rounded-md font-medium transition-colors ${
-                      outputViewMode === "table"
-                        ? "bg-orange-600 text-white font-semibold shadow-xs"
-                        : dark
-                          ? "text-zinc-400 hover:text-zinc-200"
-                          : "text-slate-700 hover:text-black font-semibold"
-                    }`}
-                  >
-                    Table
-                  </button>
+              {/* Console Sub-header */}
+              <div
+                className={`p-3 border-b flex items-center justify-between gap-3 ${
+                  dark ? "bg-zinc-900/40" : "bg-slate-50"
+                }`}
+                style={{ borderColor: "var(--border)" }}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-full bg-red-500/80 inline-block" />
+                    <span className="w-3 h-3 rounded-full bg-yellow-500/80 inline-block" />
+                    <span className="w-3 h-3 rounded-full bg-green-500/80 inline-block" />
+                  </div>
+                  <span className={`text-xs font-mono font-semibold ml-1 ${dark ? "text-zinc-300" : "text-black font-bold"}`}>
+                    DBMS_OUTPUT Terminal
+                  </span>
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono ${
+                    dark
+                      ? "bg-orange-950/60 text-orange-400 border border-orange-800/40"
+                      : "bg-orange-100 text-orange-900 border border-orange-300 font-bold"
+                  }`}>
+                    {dbmsOutput.length} message(s)
+                  </span>
                 </div>
 
-                {outputViewMode === "terminal" && dbmsOutput.length > 0 && (
+                {dbmsOutput.length > 0 && (
                   <button
                     type="button"
                     onClick={handleCopyConsole}
-                    className={`px-2 py-1 text-xs rounded-md border transition-colors ${
+                    className={`px-2.5 py-1 text-xs rounded-md border transition-colors cursor-pointer flex items-center gap-1 ${
                       dark
-                        ? "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
+                        ? "text-zinc-300 hover:text-white hover:bg-zinc-800 border-zinc-700"
                         : "text-black hover:bg-slate-200 border-slate-300 font-semibold"
                     }`}
-                    style={{ borderColor: "var(--border)" }}
-                    title="Copy console output"
+                    title="Copy console output to clipboard"
                   >
-                    {copiedConsole ? "Copied!" : "Copy"}
+                    <span>{copiedConsole ? "✓" : "📋"}</span>
+                    <span>{copiedConsole ? "Copied!" : "Copy"}</span>
                   </button>
                 )}
               </div>
-            </div>
 
-            {/* Output Display Area */}
-            {outputViewMode === "terminal" ? (
+              {/* Output Terminal Area */}
               <div
-                className="p-4 font-mono text-xs sm:text-sm overflow-x-auto max-h-[420px] scrollbar-thin flex flex-col gap-1 select-text"
+                className="p-4 font-mono text-xs sm:text-sm overflow-x-auto max-h-[320px] scrollbar-thin flex flex-col gap-1 select-text"
                 style={{
                   background: dark ? "#080B11" : "#0d1117",
                   color: "#F1F5F9",
                 }}
               >
                 {dbmsOutput.length === 0 ? (
-                  <div className="py-12 flex flex-col items-center justify-center text-zinc-400 gap-2 font-sans">
+                  <div className="py-8 flex flex-col items-center justify-center text-zinc-400 gap-2 font-sans">
                     <span className="text-2xl">⚡</span>
-                    <p className="text-xs">No execution output yet. Click &quot;Execute PL/SQL Script&quot; to run.</p>
+                    <p className="text-xs">No DBMS_OUTPUT messages captured yet. Click &quot;Execute PL/SQL&quot; to run.</p>
                   </div>
                 ) : (
                   dbmsOutput.map((line, idx) => (
@@ -380,7 +445,9 @@ export function PlSqlVisualizationPanel({
                               ? "text-orange-400 font-bold"
                               : line.includes("PRIORITY") || line.includes("ALERT")
                                 ? "text-amber-300 font-semibold"
-                                : "text-zinc-100"
+                                : line.includes("Total") || line.includes("Processed") || line.includes("Finished")
+                                  ? "text-emerald-400 font-semibold"
+                                  : "text-zinc-100"
                         }
                       >
                         {line}
@@ -389,12 +456,68 @@ export function PlSqlVisualizationPanel({
                   ))
                 )}
               </div>
-            ) : (
-              /* Structured Table View */
-              <div className="overflow-x-auto max-h-[420px] scrollbar-thin">
+            </div>
+          )}
+
+          {/* 2. Structured Table Records Card */}
+          {(outputViewMode === "both" || outputViewMode === "table") && (
+            <div
+              className="rounded-2xl border flex flex-col overflow-hidden transition-all shadow-sm"
+              style={{ background: "var(--panel)", borderColor: "var(--border)" }}
+            >
+              {/* Table Sub-header */}
+              <div
+                className={`p-3 border-b flex items-center justify-between gap-3 ${
+                  dark ? "bg-zinc-900/40" : "bg-slate-50"
+                }`}
+                style={{ borderColor: "var(--border)" }}
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm">📊</span>
+                  <span className={`text-xs font-mono font-semibold ${dark ? "text-zinc-300" : "text-black font-bold"}`}>
+                    Output / Table Records
+                  </span>
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono ${
+                    dark
+                      ? "bg-zinc-800 text-zinc-300 border border-zinc-700"
+                      : "bg-slate-200 text-slate-900 border border-slate-300 font-semibold"
+                  }`}>
+                    {finalRows.length} record(s)
+                  </span>
+                  {columns.length > 0 && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+                      dark ? "bg-zinc-800/80 text-zinc-400" : "bg-slate-100 text-slate-700 font-medium"
+                    }`}>
+                      {columns.length} columns ({columns.join(", ")})
+                    </span>
+                  )}
+                </div>
+
+                {hasExecuted && finalRows.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={onExportCSV}
+                    className={`px-2.5 py-1 text-xs rounded-md border transition-colors cursor-pointer flex items-center gap-1 font-medium ${
+                      dark
+                        ? "text-zinc-300 hover:text-white hover:bg-zinc-800 border-zinc-700"
+                        : "text-black bg-orange-50 border-orange-300 hover:bg-orange-100"
+                    }`}
+                    title="Export table records as CSV"
+                  >
+                    <span>📥</span>
+                    <span>Export CSV</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Table Data Area */}
+              <div className="overflow-x-auto max-h-[380px] scrollbar-thin">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className={`border-b ${dark ? "bg-zinc-900/60 text-zinc-300" : "bg-slate-100 text-black font-bold"}`} style={{ borderColor: "var(--border)" }}>
+                      <th className={`p-3 w-12 font-semibold uppercase tracking-wider text-[11px] ${dark ? "text-zinc-400" : "text-black font-bold"}`}>
+                        #
+                      </th>
                       {columns.map((c) => (
                         <th key={c} className={`p-3 font-semibold uppercase tracking-wider text-[11px] ${dark ? "text-zinc-300" : "text-black font-bold"}`}>
                           {c}
@@ -405,19 +528,26 @@ export function PlSqlVisualizationPanel({
                   <tbody>
                     {finalRows.length === 0 ? (
                       <tr>
-                        <td colSpan={columns.length || 1} className={`p-8 text-center ${dark ? "text-zinc-500" : "text-slate-600 font-medium"}`}>
-                          No rows to display.
+                        <td colSpan={(columns.length || 1) + 1} className={`p-8 text-center ${dark ? "text-zinc-500" : "text-slate-600 font-medium"}`}>
+                          No table records to display. Run a script to see rows.
                         </td>
                       </tr>
                     ) : (
                       finalRows.map((row, rIdx) => (
                         <tr
                           key={rIdx}
-                          className={`border-b transition-colors ${dark ? "hover:bg-zinc-800/30" : "hover:bg-slate-50"}`}
+                          className={`border-b transition-colors ${
+                            rIdx % 2 === 1
+                              ? dark ? "bg-zinc-900/20" : "bg-slate-50/50"
+                              : ""
+                          } ${dark ? "hover:bg-zinc-800/40" : "hover:bg-orange-50/80"}`}
                           style={{ borderColor: "var(--border)" }}
                         >
+                          <td className={`p-3 font-mono text-[11px] select-none ${dark ? "text-zinc-500" : "text-slate-500"}`}>
+                            {rIdx + 1}
+                          </td>
                           {columns.map((c) => (
-                            <td key={c} className={`p-3 font-mono ${dark ? "text-zinc-300" : "text-black font-medium"}`}>
+                            <td key={c} className={`p-3 font-mono ${dark ? "text-zinc-200" : "text-black font-medium"}`}>
                               {String(row[c] ?? "")}
                             </td>
                           ))}
@@ -427,8 +557,8 @@ export function PlSqlVisualizationPanel({
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

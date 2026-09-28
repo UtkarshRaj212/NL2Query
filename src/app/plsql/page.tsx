@@ -270,7 +270,7 @@ export default function PlSqlPage() {
       setColumns(result.columns);
       setDbmsOutput(result.dbmsOutput);
       setError(result.error);
-      setActiveStep(0);
+      setActiveStep(result.steps.length > 0 ? result.steps.length - 1 : 0);
 
       if (!result.error && result.updatedSchema) {
         setActiveSchema(result.updatedSchema);

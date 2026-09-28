@@ -142,58 +142,77 @@ END;
     let interpretation = "";
     let transcribedQuestion = body.question || "";
 
-    const modelName = "gemini-3.6-flash";
+    const candidateModels = ["gemini-3.6-flash", "gemini-3.8-flash"];
+    let lastError: any = null;
 
     if (body.audioBase64) {
-      // Direct audio voice processing via Gemini multimodal capabilities
-      const result = await Promise.race([
-        generateObject({
-          model: google(modelName),
-          schema: audioResponseSchema,
-          system: systemPrompt,
-          messages: [
-            {
-              role: "user",
-              content: [
+      for (const mName of candidateModels) {
+        try {
+          const result = await Promise.race([
+            generateObject({
+              model: google(mName),
+              schema: audioResponseSchema,
+              system: systemPrompt,
+              messages: [
                 {
-                  type: "text",
-                  text: isPlSql
-                    ? "Listen to the spoken audio and translate it into a valid Oracle PL/SQL block matching the database schema. Provide the transcribed question and interpretation."
-                    : "Listen to the spoken audio and translate it into a valid SQL query matching the schema. Provide the transcribed question and interpretation.",
-                },
-                {
-                  type: "file",
-                  data: body.audioBase64,
-                  mediaType: body.mimeType || "audio/webm",
+                  role: "user",
+                  content: [
+                    {
+                      type: "text",
+                      text: isPlSql
+                        ? "Listen to the spoken audio and translate it into a valid Oracle PL/SQL block matching the database schema. Provide the transcribed question and interpretation."
+                        : "Listen to the spoken audio and translate it into a valid SQL query matching the schema. Provide the transcribed question and interpretation.",
+                    },
+                    {
+                      type: "file",
+                      data: body.audioBase64,
+                      mediaType: body.mimeType || "audio/webm",
+                    },
+                  ],
                 },
               ],
-            },
-          ],
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("AI voice timeout")), 90000),
-        ),
-      ]);
+            }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("AI voice timeout")), 60000),
+            ),
+          ]);
 
-      generatedSql = result.object.sql.trim();
-      interpretation = result.object.interpretation;
-      transcribedQuestion = result.object.question;
+          generatedSql = result.object.sql.trim();
+          interpretation = result.object.interpretation;
+          transcribedQuestion = result.object.question;
+          break;
+        } catch (e: any) {
+          lastError = e;
+        }
+      }
+      if (!generatedSql) {
+        throw lastError || new Error("Failed to process audio translation.");
+      }
     } else {
-      // Text question translation
-      const result = await Promise.race([
-        generateObject({
-          model: google(modelName),
-          schema: textResponseSchema,
-          system: systemPrompt,
-          prompt: body.question!,
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("AI timeout")), 90000),
-        ),
-      ]);
+      for (const mName of candidateModels) {
+        try {
+          const result = await Promise.race([
+            generateObject({
+              model: google(mName),
+              schema: textResponseSchema,
+              system: systemPrompt,
+              prompt: body.question!,
+            }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("AI timeout")), 60000),
+            ),
+          ]);
 
-      generatedSql = result.object.sql.trim();
-      interpretation = result.object.interpretation;
+          generatedSql = result.object.sql.trim();
+          interpretation = result.object.interpretation;
+          break;
+        } catch (e: any) {
+          lastError = e;
+        }
+      }
+      if (!generatedSql) {
+        throw lastError || new Error("Failed to generate query translation.");
+      }
     }
 
     // Clean up any stray markdown fences

@@ -22,6 +22,8 @@ export interface PLSQLResult {
   steps: PipelineStep[];
   finalRows: Row[];
   columns: string[];
+  tableRows?: Row[];
+  tableColumns?: string[];
   dbmsOutput: string[];
   updatedSchema?: Table[];
   variables?: Record<string, string | number | boolean>;
@@ -36,6 +38,8 @@ interface ExecutionScope {
   steps: PipelineStep[];
   currentSchema: Table[];
   affectedRows: number;
+  tableRows?: Row[];
+  tableColumns?: string[];
 }
 
 /**
@@ -112,19 +116,28 @@ export function executePLSQL(script: string, schema: Table[]): PLSQLResult {
 
     // 2. Parse DECLARE and BEGIN sections
     const cleanScript = stripComments(raw);
-    const { declarePart, beginPart } = parseBlockSections(cleanScript);
+    const { declarePart, beginPart, exceptionPart } = parseBlockSections(cleanScript);
 
     // Process DECLARE section
     if (declarePart) {
       processDeclare(declarePart, scope, pushStep);
     }
 
-    // Process BEGIN section
-    if (beginPart) {
-      executeBlockStatements(beginPart, scope, pushStep);
-    } else {
-      // If no BEGIN keyword was explicitly written but statements exist, execute directly
-      executeBlockStatements(cleanScript, scope, pushStep);
+    try {
+      // Process BEGIN section
+      if (beginPart) {
+        executeBlockStatements(beginPart, scope, pushStep);
+      } else {
+        // If no BEGIN keyword was explicitly written but statements exist, execute directly
+        executeBlockStatements(cleanScript, scope, pushStep);
+      }
+    } catch (innerErr: any) {
+      const innerMsg = innerErr?.message || String(innerErr);
+      if (exceptionPart) {
+        handleException(exceptionPart, innerMsg, scope, pushStep);
+      } else {
+        throw innerErr;
+      }
     }
 
     // Transaction COMMIT Step
@@ -133,12 +146,24 @@ export function executePLSQL(script: string, schema: Table[]): PLSQLResult {
       Output: line,
     }));
 
+    const hasTableRows = Boolean(scope.tableRows && scope.tableRows.length > 0);
+    const finalTableRows = hasTableRows
+      ? scope.tableRows!
+      : outputRows.length > 0
+        ? outputRows
+        : (scope.currentSchema[0]?.rows ?? []);
+    const finalColumns = hasTableRows
+      ? scope.tableColumns!
+      : outputRows.length > 0
+        ? ["Line", "Output"]
+        : (scope.currentSchema[0]?.columns.map((c) => c.name) ?? []);
+
     pushStep(
       "COMMIT",
       "PL/SQL Execution Complete",
       `Execution finalized successfully. Output buffer captured ${scope.dbmsOutput.length} message(s). Total affected tuples: ${scope.affectedRows}.`,
-      outputRows,
-      ["Line", "Output"],
+      finalTableRows.slice(0, 20),
+      finalColumns,
     );
 
     const durationMs = Math.round(performance.now() - startTime);
@@ -149,8 +174,10 @@ export function executePLSQL(script: string, schema: Table[]): PLSQLResult {
       message: `PL/SQL execution completed successfully in ${durationMs}ms. Output lines: ${scope.dbmsOutput.length}.`,
       affectedRows: scope.affectedRows,
       steps: scope.steps,
-      finalRows: outputRows.length > 0 ? outputRows : (scope.currentSchema[0]?.rows ?? []),
-      columns: outputRows.length > 0 ? ["Line", "Output"] : (scope.currentSchema[0]?.columns.map(c => c.name) ?? []),
+      finalRows: finalTableRows,
+      columns: finalColumns,
+      tableRows: scope.tableRows ?? [],
+      tableColumns: scope.tableColumns ?? [],
       dbmsOutput: scope.dbmsOutput,
       updatedSchema: scope.currentSchema,
       variables: scope.variables,
@@ -172,13 +199,27 @@ export function executePLSQL(script: string, schema: Table[]): PLSQLResult {
       Output: line,
     }));
 
+    const hasTableRows = Boolean(scope.tableRows && scope.tableRows.length > 0);
+    const finalTableRows = hasTableRows
+      ? scope.tableRows!
+      : outputRows.length > 0
+        ? outputRows
+        : [{ Error: errorMsg }];
+    const finalColumns = hasTableRows
+      ? scope.tableColumns!
+      : outputRows.length > 0
+        ? ["Line", "Output"]
+        : ["Error"];
+
     return {
       statementType: "PL/SQL",
       command: "PL/SQL BLOCK",
       error: errorMsg,
       steps: scope.steps,
-      finalRows: outputRows,
-      columns: ["Line", "Output"],
+      finalRows: finalTableRows,
+      columns: finalColumns,
+      tableRows: scope.tableRows ?? [],
+      tableColumns: scope.tableColumns ?? [],
       dbmsOutput: scope.dbmsOutput,
       updatedSchema: scope.currentSchema,
     };
@@ -304,35 +345,122 @@ function executeBlockStatements(
 
 /** Split statements while respecting IF ... END IF and LOOP ... END LOOP constructs */
 function splitProceduralStatements(code: string): string[] {
-  const result: string[] = [];
-  let buffer = "";
+  const statements: string[] = [];
+  let current = "";
+  let inString = false;
+  let loopDepth = 0;
+  let ifDepth = 0;
+  let caseDepth = 0;
 
-  const tokens = code.split(/(;)/);
-  for (let i = 0; i < tokens.length; i++) {
-    const part = tokens[i];
-    if (!part) continue;
+  let i = 0;
+  while (i < code.length) {
+    const ch = code[i];
 
-    buffer += part;
+    // Handle string literal
+    if (ch === "'") {
+      if (inString && code[i + 1] === "'") {
+        current += "''";
+        i += 2;
+        continue;
+      }
+      inString = !inString;
+      current += ch;
+      i++;
+      continue;
+    }
 
-    const openIfs = (buffer.match(/\bif\b/gi) || []).length;
-    const closeIfs = (buffer.match(/\bend\s+if\b/gi) || []).length;
-    const openLoops = (buffer.match(/\bloop\b/gi) || []).length;
-    const closeLoops = (buffer.match(/\bend\s+loop\b/gi) || []).length;
+    if (inString) {
+      current += ch;
+      i++;
+      continue;
+    }
 
-    if (part === ";") {
-      if (openIfs <= closeIfs && openLoops <= closeLoops) {
-        const trimmed = buffer.trim();
-        if (trimmed) result.push(trimmed);
-        buffer = "";
+    // Check for comments
+    if (ch === "-" && code[i + 1] === "-") {
+      const endLine = code.indexOf("\n", i);
+      if (endLine === -1) break;
+      i = endLine + 1;
+      continue;
+    }
+    if (ch === "/" && code[i + 1] === "*") {
+      const endBlock = code.indexOf("*/", i + 2);
+      if (endBlock === -1) break;
+      i = endBlock + 2;
+      continue;
+    }
+
+    const remaining = code.slice(i);
+
+    // END LOOP [label]
+    const endLoopMatch = remaining.match(/^\bend\s+loop(\s+[a-zA-Z0-9_]+)?\b/i);
+    if (endLoopMatch) {
+      loopDepth = Math.max(0, loopDepth - 1);
+      current += endLoopMatch[0];
+      i += endLoopMatch[0].length;
+      continue;
+    }
+
+    // END IF
+    const endIfMatch = remaining.match(/^\bend\s+if\b/i);
+    if (endIfMatch) {
+      ifDepth = Math.max(0, ifDepth - 1);
+      current += endIfMatch[0];
+      i += endIfMatch[0].length;
+      continue;
+    }
+
+    // END CASE
+    const endCaseMatch = remaining.match(/^\bend\s+case\b/i);
+    if (endCaseMatch) {
+      caseDepth = Math.max(0, caseDepth - 1);
+      current += endCaseMatch[0];
+      i += endCaseMatch[0].length;
+      continue;
+    }
+
+    // LOOP (not preceded by END)
+    if (/^\bloop\b/i.test(remaining)) {
+      const prev = current.trimEnd();
+      if (!/\bend$/i.test(prev)) {
+        loopDepth++;
+      }
+      current += code.slice(i, i + 4);
+      i += 4;
+      continue;
+    }
+
+    // IF (not preceded by END or ELSIF)
+    if (/^\bif\b/i.test(remaining)) {
+      const prev = current.trimEnd();
+      if (!/\b(elsif|end)$/i.test(prev)) {
+        ifDepth++;
+      }
+      current += code.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
+
+    // Semicolon statement boundary
+    if (ch === ";") {
+      if (loopDepth === 0 && ifDepth === 0 && caseDepth === 0) {
+        current += ";";
+        const trimmed = current.trim();
+        if (trimmed) statements.push(trimmed);
+        current = "";
+        i++;
+        continue;
       }
     }
+
+    current += ch;
+    i++;
   }
 
-  if (buffer.trim()) {
-    result.push(buffer.trim());
+  if (current.trim()) {
+    statements.push(current.trim());
   }
 
-  return result;
+  return statements;
 }
 
 /** Execute a single procedural construct */
@@ -362,7 +490,7 @@ function executeSingleStatement(
 
   // 2. Cursor FOR Loop: FOR rec IN c_name LOOP ... END LOOP
   // or inline: FOR rec IN (SELECT ...) LOOP ... END LOOP
-  const cursorForMatch = stmt.match(/^for\s+([a-zA-Z0-9_]+)\s+in\s+(\(([\s\S]+?)\)|[a-zA-Z0-9_]+)\s+loop\s+([\s\S]+?)\s+end\s+loop$/i);
+  const cursorForMatch = stmt.match(/^for\s+([a-zA-Z0-9_]+)\s+in\s+(\(([\s\S]+?)\)|[a-zA-Z0-9_]+)\s+loop\s+([\s\S]+?)\s+end\s+loop(\s+[a-zA-Z0-9_]+)?\s*;?$/i);
   if (cursorForMatch) {
     const recVar = cursorForMatch[1].toLowerCase();
     const cursorSource = cursorForMatch[2].trim();
@@ -380,12 +508,16 @@ function executeSingleStatement(
     }
 
     const cleanQuery = query.replace(/;+$/, "").trim();
-    const queryResult = executeSQL(cleanQuery, scope.currentSchema);
+    const interpolatedQuery = interpolateVariables(cleanQuery, scope.variables);
+    const queryResult = executeSQL(interpolatedQuery, scope.currentSchema);
     if (queryResult.error) {
       throw new Error(`Cursor query failed: ${queryResult.error}`);
     }
 
     const fetchedRows = queryResult.finalRows;
+    scope.tableRows = fetchedRows;
+    scope.tableColumns = queryResult.columns;
+
     pushStep(
       "CURSOR",
       `OPEN & FETCH Cursor (${cursorSource})`,
@@ -419,7 +551,7 @@ function executeSingleStatement(
   }
 
   // 3. Numeric FOR Loop: FOR i IN 1..N LOOP ... END LOOP
-  const numForMatch = stmt.match(/^for\s+([a-zA-Z0-9_]+)\s+in\s+(-?\d+)\s*\.\.\s*(-?\d+)\s+loop\s+([\s\S]+?)\s+end\s+loop$/i);
+  const numForMatch = stmt.match(/^for\s+([a-zA-Z0-9_]+)\s+in\s+(-?\d+)\s*\.\.\s*(-?\d+)\s+loop\s+([\s\S]+?)\s+end\s+loop(\s+[a-zA-Z0-9_]+)?\s*;?$/i);
   if (numForMatch) {
     const iterVar = numForMatch[1].toLowerCase();
     const startNum = parseInt(numForMatch[2], 10);
@@ -444,14 +576,37 @@ function executeSingleStatement(
     return;
   }
 
-  // 4. Conditional IF-THEN-ELSIF-ELSE-END IF
-  const ifMatch = stmt.match(/^if\s+([\s\S]+?)\s+then\s+([\s\S]+?)\s+end\s+if$/i);
+  // 4. WHILE Loop: WHILE condition LOOP ... END LOOP
+  const whileMatch = stmt.match(/^while\s+([\s\S]+?)\s+loop\s+([\s\S]+?)\s+end\s+loop(\s+[a-zA-Z0-9_]+)?\s*;?$/i);
+  if (whileMatch) {
+    const cond = whileMatch[1].trim();
+    const loopBody = whileMatch[2].trim();
+    let iter = 0;
+    while (evaluateBooleanCondition(cond, scope.variables) && iter < 500) {
+      iter++;
+      pushStep(
+        "LOOP",
+        `WHILE Loop Iteration ${iter}`,
+        `Condition "${cond}" is TRUE. Executing loop iteration ${iter}.`,
+        [{ Iteration: iter, Condition: cond }],
+        ["Iteration", "Condition"],
+      );
+      const bodyStmts = splitProceduralStatements(loopBody);
+      for (const bStmt of bodyStmts) {
+        executeSingleStatement(bStmt, scope, pushStep);
+      }
+    }
+    return;
+  }
+
+  // 5. Conditional IF-THEN-ELSIF-ELSE-END IF
+  const ifMatch = stmt.match(/^if\s+([\s\S]+?)\s+then\s+([\s\S]+?)\s+end\s+if\s*;?$/i);
   if (ifMatch) {
     executeIfStatement(ifMatch[1], ifMatch[2], scope, pushStep);
     return;
   }
 
-  // 5. Assignment: var_name := expr
+  // 6. Assignment: var_name := expr
   const assignMatch = stmt.match(/^([a-zA-Z0-9_.]+)\s*:=\s*([\s\S]+)$/i);
   if (assignMatch) {
     const varName = assignMatch[1].toLowerCase();
@@ -469,7 +624,7 @@ function executeSingleStatement(
     return;
   }
 
-  // 6. Embedded DML: UPDATE, INSERT, DELETE
+  // 7. Embedded DML: UPDATE, INSERT, DELETE
   if (/^(update|insert\s+into|delete\s+from)\b/i.test(stmt)) {
     const interpolated = interpolateVariables(stmt, scope.variables);
     const dmlResult = executeSQL(interpolated, scope.currentSchema);
@@ -482,6 +637,8 @@ function executeSingleStatement(
     }
 
     scope.affectedRows += (dmlResult.affectedRows ?? dmlResult.finalRows.length ?? 0);
+    scope.tableRows = dmlResult.finalRows;
+    scope.tableColumns = dmlResult.columns;
 
     pushStep(
       "MUTATION",
@@ -493,20 +650,24 @@ function executeSingleStatement(
     return;
   }
 
-  // 7. Embedded SELECT INTO: SELECT col INTO var FROM table WHERE ...
+  // 8. Embedded SELECT INTO: SELECT col INTO var FROM table WHERE ...
   const selectIntoMatch = stmt.match(/^select\s+([\s\S]+?)\s+into\s+([\s\S]+?)\s+from\s+([\s\S]+)$/i);
   if (selectIntoMatch) {
     const selectCols = selectIntoMatch[1].split(",").map(c => c.trim());
     const targetVars = selectIntoMatch[2].split(",").map(v => v.trim().toLowerCase());
     const restQuery = `SELECT ${selectCols.join(", ")} FROM ${selectIntoMatch[3]}`;
 
-    const queryRes = executeSQL(restQuery, scope.currentSchema);
+    const interpolatedRest = interpolateVariables(restQuery, scope.variables);
+    const queryRes = executeSQL(interpolatedRest, scope.currentSchema);
     if (queryRes.error) throw new Error(queryRes.error);
     if (!queryRes.finalRows.length) {
       throw new Error("ORA-01403: no data found (SELECT INTO returned 0 rows).");
     }
 
     const firstRow = queryRes.finalRows[0];
+    scope.tableRows = queryRes.finalRows;
+    scope.tableColumns = queryRes.columns;
+
     for (let i = 0; i < targetVars.length; i++) {
       const colName = selectCols[i] || Object.keys(firstRow)[i];
       const val = firstRow[colName] ?? firstRow[Object.keys(firstRow)[i]];
@@ -521,6 +682,71 @@ function executeSingleStatement(
       queryRes.columns,
     );
     return;
+  }
+
+  // 9. Direct SELECT statement: SELECT ... FROM ...
+  if (/^select\b/i.test(stmt) && !/\binto\b/i.test(stmt)) {
+    const interpolated = interpolateVariables(stmt, scope.variables);
+    const queryRes = executeSQL(interpolated, scope.currentSchema);
+    if (queryRes.error) throw new Error(queryRes.error);
+    scope.tableRows = queryRes.finalRows;
+    scope.tableColumns = queryRes.columns;
+
+    pushStep(
+      "SELECT",
+      "Direct Query Execution",
+      `Queried ${queryRes.finalRows.length} record(s) from relational schema.`,
+      queryRes.finalRows.slice(0, 20),
+      queryRes.columns,
+    );
+    return;
+  }
+}
+
+/** Exception handling for WHEN ... THEN ... blocks */
+function handleException(
+  exceptionStr: string,
+  errorMsg: string,
+  scope: ExecutionScope,
+  pushStep: Function,
+) {
+  const branches = exceptionStr
+    .split(/\bwhen\b/i)
+    .map(b => b.trim())
+    .filter(Boolean);
+
+  let handled = false;
+
+  for (const branch of branches) {
+    const thenIdx = branch.search(/\bthen\b/i);
+    if (thenIdx === -1) continue;
+    const condName = branch.slice(0, thenIdx).trim().toUpperCase();
+    const handlerBody = branch.slice(thenIdx + 4).trim();
+
+    const isNoData = condName === "NO_DATA_FOUND" && (errorMsg.includes("01403") || errorMsg.includes("no data"));
+    const isZeroDivide = condName === "ZERO_DIVIDE" && (errorMsg.includes("division") || errorMsg.includes("zero"));
+    const isOthers = condName === "OTHERS";
+
+    if (isNoData || isZeroDivide || isOthers) {
+      handled = true;
+      pushStep(
+        "EXCEPTION",
+        `Exception Handled (WHEN ${condName})`,
+        `Exception intercepted: "${errorMsg}". Executing recovery block.`,
+        [{ Exception: condName, Error: errorMsg }],
+        ["Exception", "Error"],
+      );
+
+      const stmts = splitProceduralStatements(handlerBody);
+      for (const s of stmts) {
+        executeSingleStatement(s, scope, pushStep);
+      }
+      break;
+    }
+  }
+
+  if (!handled) {
+    throw new Error(errorMsg);
   }
 }
 
