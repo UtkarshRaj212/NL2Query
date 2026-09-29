@@ -37,9 +37,11 @@ interface ExecutionScope {
   dbmsOutput: string[];
   steps: PipelineStep[];
   currentSchema: Table[];
+  initialSchema: Table[];
   affectedRows: number;
   tableRows?: Row[];
   tableColumns?: string[];
+  activeRecords: Record<string, any>[];
 }
 
 /**
@@ -47,6 +49,7 @@ interface ExecutionScope {
  */
 export function executePLSQL(script: string, schema: Table[]): PLSQLResult {
   const startTime = performance.now();
+  const initialSchema = cloneSchema(schema);
   const currentSchema = cloneSchema(schema);
   const dbmsOutput: string[] = [];
   const steps: PipelineStep[] = [];
@@ -96,12 +99,17 @@ export function executePLSQL(script: string, schema: Table[]): PLSQLResult {
   }
 
   const scope: ExecutionScope = {
-    variables: {},
+    variables: {
+      sqlerrm: "ORA-00000: normal, successful completion",
+      sqlcode: 0,
+    },
     cursors: {},
     dbmsOutput,
     steps,
     currentSchema,
+    initialSchema,
     affectedRows: 0,
+    activeRecords: [],
   };
 
   try {
@@ -472,11 +480,45 @@ function executeSingleStatement(
   const stmt = rawStmt.replace(/;+$/, "").trim();
   if (!stmt) return;
 
-  // 1. DBMS_OUTPUT.PUT_LINE(expr)
+  // 1. Transaction ROLLBACK
+  if (/^rollback(\s+work)?(\s+to\s+[a-zA-Z0-9_]+)?$/i.test(stmt)) {
+    scope.currentSchema = cloneSchema(scope.initialSchema);
+    scope.affectedRows = 0;
+    const customersTbl =
+      scope.currentSchema.find((t) => t.name.toLowerCase() === "customers") ||
+      scope.currentSchema[0];
+    if (customersTbl) {
+      scope.tableRows = customersTbl.rows;
+      scope.tableColumns = customersTbl.columns.map((c) => c.name);
+    }
+    pushStep(
+      "ROLLBACK",
+      "Transaction ROLLBACK Executed",
+      "Rolled back all pending transaction modifications. Database state reverted to transaction start.",
+      scope.tableRows?.slice(0, 15) ?? [],
+      scope.tableColumns ?? [],
+    );
+    return;
+  }
+
+  // 2. Transaction COMMIT
+  if (/^commit(\s+work)?$/i.test(stmt)) {
+    scope.initialSchema = cloneSchema(scope.currentSchema);
+    pushStep(
+      "COMMIT",
+      "Transaction COMMIT Executed",
+      `Committed ${scope.affectedRows} pending tuple mutation(s) permanently to database storage.`,
+      scope.tableRows?.slice(0, 15) ?? [],
+      scope.tableColumns ?? [],
+    );
+    return;
+  }
+
+  // 3. DBMS_OUTPUT.PUT_LINE(expr)
   const putLineMatch = stmt.match(/^dbms_output\.put_line\s*\(([\s\S]+)\)$/i);
   if (putLineMatch) {
     const expr = putLineMatch[1].trim();
-    const evaluated = evaluateConcatExpression(expr, scope.variables);
+    const evaluated = evaluateConcatExpression(expr, scope.variables, scope.activeRecords);
     scope.dbmsOutput.push(evaluated);
     pushStep(
       "OUTPUT",
@@ -488,7 +530,7 @@ function executeSingleStatement(
     return;
   }
 
-  // 2. Cursor FOR Loop: FOR rec IN c_name LOOP ... END LOOP
+  // 4. Cursor FOR Loop: FOR rec IN c_name LOOP ... END LOOP
   // or inline: FOR rec IN (SELECT ...) LOOP ... END LOOP
   const cursorForMatch = stmt.match(/^for\s+([a-zA-Z0-9_]+)\s+in\s+(\(([\s\S]+?)\)|[a-zA-Z0-9_]+)\s+loop\s+([\s\S]+?)\s+end\s+loop(\s+[a-zA-Z0-9_]+)?\s*;?$/i);
   if (cursorForMatch) {
@@ -530,9 +572,19 @@ function executeSingleStatement(
     for (const row of fetchedRows) {
       iter++;
       for (const [k, v] of Object.entries(row)) {
-        scope.variables[`${recVar}.${k.toLowerCase()}`] = v;
-        scope.variables[k.toLowerCase()] = v;
+        const kLower = k.toLowerCase();
+        scope.variables[`${recVar}.${kLower}`] = v;
+        scope.variables[`:${recVar}.${kLower}`] = v;
+        // Also support common PK alias
+        if (kLower === "id") {
+          scope.variables[`${recVar}.customer_id`] = v;
+          scope.variables[`:${recVar}.customer_id`] = v;
+        } else if (kLower === "customer_id") {
+          scope.variables[`${recVar}.id`] = v;
+          scope.variables[`:${recVar}.id`] = v;
+        }
       }
+      scope.activeRecords.push(row);
 
       pushStep(
         "LOOP",
@@ -546,6 +598,8 @@ function executeSingleStatement(
       for (const bStmt of bodyStmts) {
         executeSingleStatement(bStmt, scope, pushStep);
       }
+
+      scope.activeRecords.pop();
     }
     return;
   }
@@ -611,7 +665,7 @@ function executeSingleStatement(
   if (assignMatch) {
     const varName = assignMatch[1].toLowerCase();
     const expr = assignMatch[2].trim();
-    const value = evaluateExpression(expr, scope.variables);
+    const value = evaluateExpression(expr, scope.variables, scope.activeRecords);
     scope.variables[varName] = value;
 
     pushStep(
@@ -710,6 +764,11 @@ function handleException(
   scope: ExecutionScope,
   pushStep: Function,
 ) {
+  // Bind standard Oracle exception pseudo-variables
+  scope.variables["sqlerrm"] = errorMsg;
+  const oraMatch = errorMsg.match(/ORA-(\d{5})/i);
+  scope.variables["sqlcode"] = oraMatch ? -parseInt(oraMatch[1], 10) : -20000;
+
   const branches = exceptionStr
     .split(/\bwhen\b/i)
     .map(b => b.trim())
@@ -835,21 +894,56 @@ function evaluateBooleanCondition(cond: string, vars: Record<string, any>): bool
   }
 }
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** Evaluate PL/SQL string concatenation */
-function evaluateConcatExpression(expr: string, vars: Record<string, any>): string {
-  const parts = expr.split("||").map(p => p.trim());
+function evaluateConcatExpression(
+  expr: string,
+  vars: Record<string, any>,
+  activeRecords: Record<string, any>[] = [],
+): string {
+  const parts = expr.split("||").map((p) => p.trim());
   let result = "";
 
   for (const part of parts) {
-    if ((part.startsWith("'") && part.endsWith("'")) || (part.startsWith('"') && part.endsWith('"'))) {
+    if (
+      (part.startsWith("'") && part.endsWith("'")) ||
+      (part.startsWith('"') && part.endsWith('"'))
+    ) {
       result += part.slice(1, -1);
     } else {
       const lower = part.toLowerCase();
+
+      // Built-in PL/SQL pseudo-variables
+      if (lower === "sqlerrm" || lower === "sqlerrm()") {
+        result += String(vars["sqlerrm"] ?? "ORA-00000: normal, successful completion");
+        continue;
+      }
+      if (lower === "sqlcode") {
+        result += String(vars["sqlcode"] ?? 0);
+        continue;
+      }
+
       if (lower in vars) {
         result += String(vars[lower] ?? "");
       } else {
+        // Fallback: check active record fields (e.g. part is "name" or "id" and active record has "name" or "id")
+        let foundInRecord = false;
+        for (let i = activeRecords.length - 1; i >= 0; i--) {
+          const rec = activeRecords[i];
+          const recKey = Object.keys(rec).find((k) => k.toLowerCase() === lower);
+          if (recKey) {
+            result += String(rec[recKey] ?? "");
+            foundInRecord = true;
+            break;
+          }
+        }
+        if (foundInRecord) continue;
+
         try {
-          const evalVal = evaluateExpression(part, vars);
+          const evalVal = evaluateExpression(part, vars, activeRecords);
           result += String(evalVal);
         } catch {
           result += part;
@@ -862,31 +956,155 @@ function evaluateConcatExpression(expr: string, vars: Record<string, any>): stri
 }
 
 /** Evaluate arithmetic / scalar expression */
-function evaluateExpression(expr: string, vars: Record<string, any>): any {
+function evaluateExpression(
+  expr: string,
+  vars: Record<string, any>,
+  activeRecords: Record<string, any>[] = [],
+): any {
   let exp = expr.trim();
-  if ((exp.startsWith("'") && exp.endsWith("'")) || (exp.startsWith('"') && exp.endsWith('"'))) {
+  if (
+    (exp.startsWith("'") && exp.endsWith("'")) ||
+    (exp.startsWith('"') && exp.endsWith('"'))
+  ) {
     return exp.slice(1, -1);
   }
 
-  for (const [k, v] of Object.entries(vars)) {
-    const re = new RegExp(`\\b${k}\\b`, "gi");
+  const lower = exp.toLowerCase();
+  if (lower === "sqlerrm" || lower === "sqlerrm()") {
+    return vars["sqlerrm"] ?? "ORA-00000: normal, successful completion";
+  }
+  if (lower === "sqlcode") {
+    return vars["sqlcode"] ?? 0;
+  }
+
+  // Active records fallback
+  for (let i = activeRecords.length - 1; i >= 0; i--) {
+    const rec = activeRecords[i];
+    const recKey = Object.keys(rec).find((k) => k.toLowerCase() === lower);
+    if (recKey && rec[recKey] !== undefined) {
+      return rec[recKey];
+    }
+  }
+
+  const sortedKeys = Object.keys(vars).sort((a, b) => b.length - a.length);
+  for (const k of sortedKeys) {
+    const v = vars[k];
+    if (v === undefined) continue;
+    const escaped = escapeRegex(k);
+    const re = new RegExp(`(?<=^|[^a-zA-Z0-9_.])${escaped}(?=[^a-zA-Z0-9_.]|$)`, "gi");
     exp = exp.replace(re, typeof v === "number" ? String(v) : `'${v}'`);
   }
 
   try {
     const fn = new Function(`return (${exp});`);
-    return fn();
-  } catch {
+    const val = fn();
+    if (val === Infinity || val === -Infinity) {
+      throw new Error("ORA-01476: divisor is equal to zero");
+    }
+    return val;
+  } catch (e: any) {
+    if (e?.message?.includes("ORA-01476")) {
+      throw e;
+    }
     return expr;
   }
 }
 
 /** Replace PL/SQL variables in DML statement with current values */
 function interpolateVariables(sql: string, vars: Record<string, any>): string {
-  let result = sql;
-  for (const [k, v] of Object.entries(vars)) {
-    const re = new RegExp(`(?<=[=,<>!\\s])(:?${k})(?=[\\s,;]|$)`, "gi");
+  const trimmed = sql.trim();
+  const sortedKeys = Object.keys(vars).sort((a, b) => b.length - a.length);
+
+  // 1. UPDATE statement: UPDATE table SET col1 = val1, col2 = val2 [WHERE col = val]
+  if (/^update\s+/i.test(trimmed)) {
+    const updateMatch = trimmed.match(
+      /^(\s*update\s+[\w]+\s+set\s+)(.+?)(?:\s+where\s+([\s\S]+))?$/i,
+    );
+    if (updateMatch) {
+      const prefix = updateMatch[1];
+      const rawSet = updateMatch[2];
+      const rawWhere = updateMatch[3];
+
+      const setAssignments = rawSet
+        .split(",")
+        .map((assign) => {
+          const eqIdx = assign.indexOf("=");
+          if (eqIdx === -1) return assign;
+          const colPart = assign.slice(0, eqIdx);
+          const exprPart = assign.slice(eqIdx + 1);
+          return `${colPart}= ${replaceVarsInExpression(exprPart, vars, sortedKeys)}`;
+        })
+        .join(", ");
+
+      let whereClause = "";
+      if (rawWhere) {
+        const whereMatch = rawWhere.match(
+          /^(\s*(?:(?:UPPER|LOWER)\s*\(\s*[\w.]+\s*\)|[\w.]+)\s*(?:>=|<=|!=|<>|=|LIKE|>|<)\s*)([\s\S]+)$/i,
+        );
+        if (whereMatch) {
+          const leftColPart = whereMatch[1];
+          const rightValPart = whereMatch[2];
+          whereClause = ` WHERE ${leftColPart}${replaceVarsInExpression(rightValPart, vars, sortedKeys)}`;
+        } else {
+          whereClause = ` WHERE ${replaceVarsInExpression(rawWhere, vars, sortedKeys)}`;
+        }
+      }
+
+      return `${prefix}${setAssignments}${whereClause}`;
+    }
+  }
+
+  // 2. INSERT statement: INSERT INTO table [(cols)] VALUES (vals)
+  if (/^insert\s+/i.test(trimmed)) {
+    const insertMatch = trimmed.match(
+      /^(\s*insert(?:\s+into|\s+in)?\s+[\w]+\s*(?:\([^)]+\))?\s*values\s*)([\s\S]+)$/i,
+    );
+    if (insertMatch) {
+      const prefix = insertMatch[1];
+      const valuesPart = insertMatch[2];
+      return `${prefix}${replaceVarsInExpression(valuesPart, vars, sortedKeys)}`;
+    }
+  }
+
+  // 3. DELETE statement: DELETE FROM table [WHERE col = val]
+  if (/^delete\s+/i.test(trimmed)) {
+    const deleteMatch = trimmed.match(
+      /^(\s*delete(?:\s+from)?\s+[\w]+\s+where\s+)([\s\S]+)$/i,
+    );
+    if (deleteMatch) {
+      const prefix = deleteMatch[1];
+      const rawWhere = deleteMatch[2];
+      const whereMatch = rawWhere.match(
+        /^(\s*(?:(?:UPPER|LOWER)\s*\(\s*[\w.]+\s*\)|[\w.]+)\s*(?:>=|<=|!=|<>|=|LIKE|>|<)\s*)([\s\S]+)$/i,
+      );
+      if (whereMatch) {
+        const leftColPart = whereMatch[1];
+        const rightValPart = whereMatch[2];
+        return `${prefix}${leftColPart}${replaceVarsInExpression(rightValPart, vars, sortedKeys)}`;
+      }
+      return `${prefix}${replaceVarsInExpression(rawWhere, vars, sortedKeys)}`;
+    }
+  }
+
+  // 4. Default: replace variables in expression
+  return replaceVarsInExpression(trimmed, vars, sortedKeys);
+}
+
+function replaceVarsInExpression(
+  expr: string,
+  vars: Record<string, any>,
+  sortedKeys: string[],
+): string {
+  let result = expr;
+  for (const k of sortedKeys) {
+    const v = vars[k];
+    if (v === undefined) continue;
     const valRepr = typeof v === "number" ? String(v) : `'${v}'`;
+    const escaped = escapeRegex(k);
+    const re = new RegExp(
+      `(?<=^|[=,<>!+\\-*/%\\s(:])(:?${escaped})(?=[\\s,;)+*/%\\-!<>=]|$)`,
+      "gi",
+    );
     result = result.replace(re, valRepr);
   }
   return result;

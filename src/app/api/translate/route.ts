@@ -131,10 +131,13 @@ EXCEPTION
 END;
 2. Or a valid CREATE OR REPLACE PROCEDURE / FUNCTION / TRIGGER if requested.
 3. Always include informative DBMS_OUTPUT.PUT_LINE calls to display progress, calculations, or status messages.
-4. Use exact table and column names matching the schema (case-insensitive).
-5. Ensure strings use single quotes and string concatenation uses || (e.g. 'Found ' || v_count).
-6. In WHERE clauses, use direct column comparisons matching the data (e.g. WHERE city = 'Mumbai', WHERE status = 'shipped').
-7. Do NOT include markdown code fences (\`\`\`) or commentary outside the PL/SQL code. Return only valid PL/SQL.`;
+4. Use exact table and column names matching the schema (case-insensitive). Note: check column names carefully (e.g. in "customers", the primary key column is "id").
+5. In cursor FOR loops (FOR r IN cursor_name LOOP), access cursor record fields with the record variable prefix (e.g. r.id, r.name).
+6. Ensure strings use single quotes and string concatenation uses || (e.g. 'Found ' || v_count).
+7. In WHERE clauses, use direct column comparisons matching the data (e.g. WHERE city = 'Delhi', WHERE status = 'shipped').
+8. When transactions (ROLLBACK or COMMIT) are requested, use standard COMMIT; or ROLLBACK; statements with informative DBMS_OUTPUT.PUT_LINE.
+9. When writing EXCEPTION handlers, use WHEN OTHERS THEN with ROLLBACK; and DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+10. Do NOT include markdown code fences (\`\`\`) or commentary outside the PL/SQL code. Return only valid PL/SQL.`;
 
     const systemPrompt = isPlSql ? plsqlSystemPrompt : sqlSystemPrompt;
 
