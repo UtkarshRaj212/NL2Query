@@ -13,6 +13,7 @@ import { PlSqlLearnView } from "@/components/PlSqlLearnView";
 import { DevelopedByView } from "@/components/DevelopedByView";
 import { DownloadView } from "@/components/DownloadView";
 import { QuizView } from "@/components/QuizView";
+import { ExamView } from "@/components/ExamView";
 import type { HistoryItem, Tab, ThemeId } from "@/components/nlSqlTypes";
 import {
   DATASETS,
@@ -799,6 +800,12 @@ export default function PlSqlPage() {
         {activeSection === "quiz" && (
           <QuizView
             mode="plsql"
+            onBackToWorkspace={() => setActiveSection("workspace")}
+          />
+        )}
+        {activeSection === "exam" && (
+          <ExamView
+            initialMode="plsql"
             onBackToWorkspace={() => setActiveSection("workspace")}
           />
         )}

@@ -14,6 +14,7 @@ import { LearnView } from "@/components/LearnView";
 import { DevelopedByView } from "@/components/DevelopedByView";
 import { DownloadView } from "@/components/DownloadView";
 import { QuizView } from "@/components/QuizView";
+import { ExamView } from "@/components/ExamView";
 import {
   DATASETS,
   getDefaultSchema,
@@ -823,6 +824,12 @@ export default function Home() {
         {activeSection === "quiz" && (
           <QuizView
             mode="sql"
+            onBackToWorkspace={() => setActiveSection("workspace")}
+          />
+        )}
+        {activeSection === "exam" && (
+          <ExamView
+            initialMode="sql"
             onBackToWorkspace={() => setActiveSection("workspace")}
           />
         )}
