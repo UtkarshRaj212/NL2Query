@@ -693,12 +693,12 @@ export function InputPanel({
                       <span>Warning:</span>
                     </span>
                   ) : assistantResult.severity === "incomplete" ? (
-                    <span className="flex items-center gap-1 text-sky-400 font-medium shrink-0">
-                      <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                    <span className="flex items-center gap-1 text-sky-700 dark:text-sky-400 font-semibold shrink-0">
+                      <span className="w-2 h-2 rounded-full bg-sky-600 dark:bg-sky-400 animate-pulse" />
                       <span>Incomplete:</span>
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-emerald-400 font-semibold shrink-0">
+                    <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold shrink-0">
                       <svg
                         className="w-3.5 h-3.5 shrink-0"
                         fill="none"

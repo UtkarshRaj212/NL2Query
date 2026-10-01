@@ -700,3 +700,82 @@ html[data-theme="pearl"] .dataset-edit-btn svg,
 .terminal-appear {
   animation: terminalFade 0.6s ease-out forwards;
 }
+
+/* =========================================================================
+   EXAM PYQ BANK THEMES & GRADIENTS
+   ========================================================================= */
+
+/* Top Banner Gradients (Clean, crisp in light mode without dark grey haze) */
+.exam-banner-sql {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(14, 165, 233, 0.05) 50%, rgba(241, 245, 249, 0.75) 100%);
+}
+html[data-theme="slate"] .exam-banner-sql,
+.dark .exam-banner-sql {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(9, 9, 11, 0.6) 100%);
+}
+
+.exam-banner-plsql {
+  background: linear-gradient(135deg, rgba(234, 88, 12, 0.12) 0%, rgba(249, 115, 22, 0.05) 50%, rgba(241, 245, 249, 0.75) 100%);
+}
+html[data-theme="slate"] .exam-banner-plsql,
+.dark .exam-banner-plsql {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(40, 9, 52, 0.6) 100%);
+}
+
+/* Exam Title Gradient Text - Rich Darker Shade in Light Mode, Luminous in Dark Mode */
+.exam-title-sql {
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 45%, #1d4ed8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+html[data-theme="slate"] .exam-title-sql,
+.dark .exam-title-sql {
+  background: linear-gradient(135deg, #38bdf8 0%, #67e8f9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.exam-title-plsql {
+  background: linear-gradient(135deg, #c2410c 0%, #ea580c 45%, #b91c1c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+html[data-theme="slate"] .exam-title-plsql,
+.dark .exam-title-plsql {
+  background: linear-gradient(135deg, #fb923c 0%, #fde047 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Code Snippet Under Evaluation in Light Mode: Darker Crisp Contrast */
+html[data-theme="pearl"] .exam-code-box,
+.theme-pearl .exam-code-box {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+html[data-theme="pearl"] .exam-code-sql,
+.theme-pearl .exam-code-sql {
+  color: #075985 !important; /* Deep Sky 800/900 */
+  font-weight: 600;
+}
+
+html[data-theme="pearl"] .exam-code-plsql,
+.theme-pearl .exam-code-plsql {
+  color: #7c2d12 !important; /* Deep Orange/Amber 900 */
+  font-weight: 600;
+}
+
+html[data-theme="slate"] .exam-code-sql,
+.dark .exam-code-sql {
+  color: #7dd3fc !important; /* Sky 300 in Dark Mode */
+}
+
+html[data-theme="slate"] .exam-code-plsql,
+.dark .exam-code-plsql {
+  color: #fdba74 !important; /* Orange 300 in Dark Mode */
+}

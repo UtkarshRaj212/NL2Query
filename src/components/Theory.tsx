@@ -514,28 +514,28 @@ export function Theory({
                 style={{ background: "var(--panel)", borderColor: "var(--border)" }}
               >
                 <span className="opacity-70 text-[10px] uppercase block">Best Time</span>
-                <span className="font-bold text-emerald-400">{activeComplexity.timeBest}</span>
+                <span className="font-bold text-emerald-700 dark:text-emerald-400">{activeComplexity.timeBest}</span>
               </div>
               <div
                 className="p-2.5 rounded-lg border space-y-1"
                 style={{ background: "var(--panel)", borderColor: "var(--border)" }}
               >
                 <span className="opacity-70 text-[10px] uppercase block">Average Time</span>
-                <span className="font-bold text-amber-400">{activeComplexity.timeAvg}</span>
+                <span className="font-bold text-amber-700 dark:text-amber-400">{activeComplexity.timeAvg}</span>
               </div>
               <div
                 className="p-2.5 rounded-lg border space-y-1"
                 style={{ background: "var(--panel)", borderColor: "var(--border)" }}
               >
                 <span className="opacity-70 text-[10px] uppercase block">Worst Time</span>
-                <span className="font-bold text-rose-400">{activeComplexity.timeWorst}</span>
+                <span className="font-bold text-rose-700 dark:text-rose-400">{activeComplexity.timeWorst}</span>
               </div>
               <div
                 className="p-2.5 rounded-lg border space-y-1"
                 style={{ background: "var(--panel)", borderColor: "var(--border)" }}
               >
                 <span className="opacity-70 text-[10px] uppercase block">Buffer Space</span>
-                <span className="font-bold text-sky-400">{activeComplexity.space}</span>
+                <span className="font-bold text-sky-700 dark:text-sky-400">{activeComplexity.space}</span>
               </div>
             </div>
 

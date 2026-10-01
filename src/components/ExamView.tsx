@@ -232,12 +232,10 @@ export function ExamView({
     >
       {/* Top Banner & Header */}
       <div
-        className="w-full border-b shrink-0 px-4 sm:px-8 py-6 relative overflow-hidden"
+        className={`w-full border-b shrink-0 px-4 sm:px-8 py-6 relative overflow-hidden ${
+          mode === "sql" ? "exam-banner-sql" : "exam-banner-plsql"
+        }`}
         style={{
-          background:
-            mode === "sql"
-              ? "linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, rgba(9, 9, 11, 0.4) 100%)"
-              : "linear-gradient(135deg, rgba(249, 115, 22, 0.08) 0%, rgba(40, 9, 52, 0.4) 100%)",
           borderColor: "var(--border)",
         }}
       >
@@ -248,9 +246,9 @@ export function ExamView({
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               Exam PYQ Bank:{" "}
               <span
-                style={{
-                  color: mode === "sql" ? "#38bdf8" : "#fb923c",
-                }}
+                className={`font-black ${
+                  mode === "sql" ? "exam-title-sql" : "exam-title-plsql"
+                }`}
               >
                 {mode === "sql" ? "SQL Queries" : "PL/SQL Queries"}
               </span>
@@ -475,7 +473,7 @@ export function ExamView({
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="px-3 py-2 rounded-xl text-xs font-semibold border text-sky-400 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20 transition-colors cursor-pointer shrink-0"
+                className="px-3 py-2 rounded-xl text-xs font-semibold border text-sky-700 dark:text-sky-400 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20 transition-colors cursor-pointer shrink-0"
                 title="Reset all filters"
               >
                 Reset Filters
@@ -526,7 +524,7 @@ export function ExamView({
             <button
               type="button"
               onClick={handleResetFilters}
-              className="mt-2 px-4 py-1.5 rounded-lg text-xs font-semibold border text-sky-400 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20 transition-colors cursor-pointer"
+              className="mt-2 px-4 py-1.5 rounded-lg text-xs font-semibold border text-sky-700 dark:text-sky-400 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20 transition-colors cursor-pointer"
             >
               Reset Filters
             </button>
@@ -549,7 +547,7 @@ export function ExamView({
                 className="rounded-xl border transition-all duration-200 overflow-hidden shadow-xs"
                 style={{
                   background: "var(--panel)",
-                  borderColor: isQuestionExpanded ? (mode === "sql" ? "rgba(56, 189, 248, 0.45)" : "rgba(249, 115, 22, 0.45)") : "var(--border)",
+                  borderColor: isQuestionExpanded ? (mode === "sql" ? "rgba(2, 132, 199, 0.45)" : "rgba(234, 88, 12, 0.45)") : "var(--border)",
                 }}
               >
                 {/* ── COLLAPSED / EXPANDED HEADER BAR ── */}
@@ -712,13 +710,19 @@ export function ExamView({
                         </div>
 
                         <div
-                          className="rounded-xl border p-4 font-mono text-xs sm:text-[13px] overflow-x-auto leading-relaxed"
+                          className="rounded-xl border p-4 font-mono text-xs sm:text-[13px] overflow-x-auto leading-relaxed exam-code-box shadow-xs"
                           style={{
-                            background: "var(--background)",
+                            background: "var(--surface-subtle)",
                             borderColor: "var(--border)",
                           }}
                         >
-                          <code className="text-sky-300 dark:text-sky-300 whitespace-pre">
+                          <code
+                            className={`whitespace-pre font-mono font-semibold ${
+                              q.category === "sql"
+                                ? "text-sky-900 dark:text-sky-300 exam-code-sql"
+                                : "text-amber-950 dark:text-orange-300 exam-code-plsql"
+                            }`}
+                          >
                             {q.codeSnippet}
                           </code>
                         </div>
@@ -735,7 +739,7 @@ export function ExamView({
                             <span>Select Your Answer:</span>
                             {status && (
                               <span
-                                className={`text-[11px] font-bold ${status.isCorrect ? "text-emerald-400" : "text-rose-400"
+                                className={`text-[11px] font-bold ${status.isCorrect ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"
                                   }`}
                               >
                                 {status.isCorrect ? "✓ Correct Choice!" : "✗ Incorrect Choice"}
@@ -755,9 +759,9 @@ export function ExamView({
                                   type="button"
                                   onClick={() => handleSelectMcq(q, opt.key)}
                                   className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${isCorrect
-                                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400 font-semibold"
+                                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-700 dark:text-emerald-400 font-semibold"
                                     : isWrong
-                                      ? "bg-rose-500/10 border-rose-500/50 text-rose-400 font-medium"
+                                      ? "bg-rose-500/10 border-rose-500/50 text-rose-700 dark:text-rose-400 font-medium"
                                       : isSelected
                                         ? "bg-sky-500/10 border-sky-500/40 text-[var(--foreground)] font-medium"
                                         : "hover:bg-[var(--surface-hover)] border-[var(--border)] text-[var(--foreground)]"
@@ -780,7 +784,7 @@ export function ExamView({
                                   </span>
                                   <span className="text-xs sm:text-sm leading-relaxed">{opt.text}</span>
                                   {isCorrect && (
-                                    <span className="ml-auto text-xs font-mono font-bold text-emerald-400 shrink-0">
+                                    <span className="ml-auto text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 shrink-0">
                                       ✓ Correct
                                     </span>
                                   )}
@@ -796,7 +800,7 @@ export function ExamView({
                             <span className="text-xs font-mono uppercase tracking-wider text-[var(--muted)] font-bold">
                               Enter Answer:
                             </span>
-                            <span className="text-[11px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded">
+                            <span className="text-[11px] font-mono text-sky-800 dark:text-sky-400 font-semibold bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded">
                               {q.answerTypeHint || "Numerical value (e.g. integer or decimal)"}
                             </span>
                           </div>
@@ -832,7 +836,7 @@ export function ExamView({
                             <button
                               type="button"
                               onClick={() => handleCheckNumericalAnswer(q)}
-                              className="px-4 py-2 rounded-xl text-xs font-semibold font-mono border transition-all cursor-pointer shadow-xs bg-sky-500/15 border-sky-500/35 text-sky-400 hover:bg-sky-500/25 shrink-0"
+                              className="px-4 py-2 rounded-xl text-xs font-bold font-mono border transition-all cursor-pointer shadow-xs bg-sky-500/15 border-sky-500/35 text-sky-800 dark:text-sky-400 hover:bg-sky-500/25 shrink-0"
                             >
                               Check
                             </button>
@@ -842,11 +846,11 @@ export function ExamView({
                           {status && (
                             <div className="mt-1 text-xs font-mono flex items-center gap-2">
                               {status.isCorrect ? (
-                                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                                <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
                                   ✓ Correct! Your answer matches the official exam key.
                                 </span>
                               ) : (
-                                <span className="text-rose-400 font-bold flex items-center gap-1">
+                                <span className="text-rose-700 dark:text-rose-400 font-bold flex items-center gap-1">
                                   ✗ Incorrect. Try calculating again or expand the solution below.
                                 </span>
                               )}
@@ -869,7 +873,7 @@ export function ExamView({
                         style={{
                           background: isSolutionExpanded ? "rgba(16, 185, 129, 0.12)" : "var(--surface-subtle)",
                           borderColor: isSolutionExpanded ? "rgba(16, 185, 129, 0.4)" : "var(--border)",
-                          color: isSolutionExpanded ? "#34d399" : "var(--foreground)",
+                          color: isSolutionExpanded ? (mode === "sql" ? "#0284c7" : "#ea580c") : "var(--foreground)",
                         }}
                       >
                         <svg
@@ -906,11 +910,11 @@ export function ExamView({
                         {/* Correct Answer Header Banner */}
                         <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-emerald-500/20">
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-xs shrink-0">
+                            <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-xs shrink-0">
                               ✓
                             </div>
                             <div>
-                              <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-500 font-bold block">
+                              <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold block">
                                 Official Answer Key
                               </span>
                               <span className="text-sm sm:text-base font-extrabold text-[var(--foreground)]">
@@ -926,7 +930,7 @@ export function ExamView({
 
                         {/* Summary */}
                         <div className="text-xs sm:text-sm text-[var(--foreground)] leading-relaxed bg-[var(--background)] p-3 rounded-lg border border-[var(--border)]">
-                          <strong className="text-emerald-400 font-semibold block mb-1">Executive Summary:</strong>
+                          <strong className="text-emerald-700 dark:text-emerald-400 font-semibold block mb-1">Executive Summary:</strong>
                           {q.solution.summary}
                         </div>
 
@@ -947,7 +951,7 @@ export function ExamView({
                                 }}
                               >
                                 <div className="flex items-center gap-2">
-                                  <span className="w-5 h-5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/30 flex items-center justify-center font-mono text-[11px] font-bold shrink-0">
+                                  <span className="w-5 h-5 rounded-full bg-sky-500/10 text-sky-800 dark:text-sky-400 border border-sky-500/30 flex items-center justify-center font-mono text-[11px] font-bold shrink-0">
                                     {st.stepNumber}
                                   </span>
                                   <span className="font-semibold text-xs sm:text-sm text-[var(--foreground)]">
@@ -958,7 +962,17 @@ export function ExamView({
                                   {st.explanation}
                                 </p>
                                 {st.codeSnippet && (
-                                  <pre className="ml-7 p-2 rounded bg-[var(--background)] border border-[var(--border)] text-[11px] font-mono text-sky-300 overflow-x-auto">
+                                  <pre
+                                    className={`ml-7 p-2 rounded border text-[11px] font-mono overflow-x-auto font-semibold ${
+                                      q.category === "sql"
+                                        ? "text-sky-900 dark:text-sky-300 exam-code-sql"
+                                        : "text-amber-950 dark:text-orange-300 exam-code-plsql"
+                                    }`}
+                                    style={{
+                                      background: "var(--background)",
+                                      borderColor: "var(--border)",
+                                    }}
+                                  >
                                     {st.codeSnippet}
                                   </pre>
                                 )}
@@ -975,9 +989,9 @@ export function ExamView({
                             borderColor: "rgba(245, 158, 11, 0.3)",
                           }}
                         >
-                          <span className="text-amber-400 text-sm shrink-0">💡</span>
+                          <span className="text-amber-500 dark:text-amber-400 text-sm shrink-0">💡</span>
                           <div className="text-xs leading-relaxed">
-                            <strong className="text-amber-400 font-semibold">Key Exam Takeaway: </strong>
+                            <strong className="text-amber-700 dark:text-amber-400 font-semibold">Key Exam Takeaway: </strong>
                             <span className="text-[var(--foreground)]">{q.solution.keyTakeaway}</span>
                           </div>
                         </div>
