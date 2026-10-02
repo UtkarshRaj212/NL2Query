@@ -393,13 +393,13 @@ export function DownloadView({
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 shrink-0">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 shrink-0">
                 With ER Diagram
               </span>
             </div>
 
             <div
-              className="p-4 rounded-xl border text-sm space-y-2 shadow-2xs"
+              className="p-4 rounded-lg border text-sm space-y-2 shadow-2xs"
               style={{ background: "var(--surface-subtle)", borderColor: "var(--border)" }}
             >
               <div className="flex items-center justify-between text-xs sm:text-sm">
@@ -427,9 +427,9 @@ export function DownloadView({
                 type="button"
                 onClick={() => handleDownloadReport("pdf")}
                 disabled={downloadingFormat === "report-pdf"}
-                className="p-3.5 sm:p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
+                className="p-3.5 sm:p-4 rounded-lg border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
               >
-                <span className="text-xs font-mono px-2.5 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 font-bold">
+                <span className="text-xs font-mono px-2.5 py-0.5 rounded-md bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 font-bold">
                   PDF
                 </span>
                 <span className={`text-sm sm:text-base font-bold ${textTitle}`}>.pdf</span>
@@ -441,9 +441,9 @@ export function DownloadView({
                 type="button"
                 onClick={() => handleDownloadReport("docx")}
                 disabled={downloadingFormat === "report-docx"}
-                className="p-3.5 sm:p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
+                className="p-3.5 sm:p-4 rounded-lg border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
               >
-                <span className="text-xs font-mono px-2.5 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 font-bold">
+                <span className="text-xs font-mono px-2.5 py-0.5 rounded-md bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 font-bold">
                   DOCX
                 </span>
                 <span className={`text-sm sm:text-base font-bold ${textTitle}`}>.docx</span>
@@ -455,9 +455,9 @@ export function DownloadView({
                 type="button"
                 onClick={() => handleDownloadReport("md")}
                 disabled={downloadingFormat === "report-md"}
-                className="p-3.5 sm:p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
+                className="p-3.5 sm:p-4 rounded-lg border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
               >
-                <span className="text-xs font-mono px-2.5 py-0.5 rounded bg-orange-500/15 text-orange-700 dark:text-orange-400 border border-orange-500/30 font-bold">
+                <span className="text-xs font-mono px-2.5 py-0.5 rounded-md bg-orange-500/15 text-orange-700 dark:text-orange-400 border border-orange-500/30 font-bold">
                   MD
                 </span>
                 <span className={`text-sm sm:text-base font-bold ${textTitle}`}>.md</span>
@@ -469,9 +469,9 @@ export function DownloadView({
                 type="button"
                 onClick={() => handleDownloadReport("txt")}
                 disabled={downloadingFormat === "report-txt"}
-                className="p-3.5 sm:p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
+                className="p-3.5 sm:p-4 rounded-lg border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
               >
-                <span className="text-xs font-mono px-2.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-bold">
+                <span className="text-xs font-mono px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-bold">
                   TXT
                 </span>
                 <span className={`text-sm sm:text-base font-bold ${textTitle}`}>.txt</span>
@@ -501,13 +501,13 @@ export function DownloadView({
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
                 7 Formats
               </span>
             </div>
 
             <div
-              className="p-4 rounded-xl border text-sm space-y-2 shadow-2xs"
+              className="p-4 rounded-lg border text-sm space-y-2 shadow-2xs"
               style={{ background: "var(--surface-subtle)", borderColor: "var(--border)" }}
             >
               <div className="flex items-center justify-between text-xs sm:text-sm">
@@ -530,7 +530,7 @@ export function DownloadView({
               <button
                 type="button"
                 onClick={() => handleDownloadResult("csv")}
-                className={`p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 dl-action-btn`}
+                className={`p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 dl-action-btn`}
               >
                 <span className={textTitle}>CSV</span>
                 <span className={`text-xs font-mono font-bold ${textMuted}`}>.csv</span>
@@ -540,7 +540,7 @@ export function DownloadView({
               <button
                 type="button"
                 onClick={() => handleDownloadResult("excel")}
-                className="p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold cursor-pointer active:scale-95 dl-action-btn"
+                className="p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold cursor-pointer active:scale-95 dl-action-btn"
               >
                 <span className="text-emerald-700 dark:text-emerald-400 font-bold">Excel</span>
                 <span className={`text-xs font-mono font-bold ${textMuted}`}>.xlsx</span>
@@ -550,7 +550,7 @@ export function DownloadView({
               <button
                 type="button"
                 onClick={() => handleDownloadResult("md")}
-                className={`p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 dl-action-btn`}
+                className={`p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 dl-action-btn`}
               >
                 <span className={textTitle}>Markdown</span>
                 <span className={`text-xs font-mono font-bold ${textMuted}`}>.md</span>
@@ -560,7 +560,7 @@ export function DownloadView({
               <button
                 type="button"
                 onClick={() => handleDownloadResult("json")}
-                className="p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold cursor-pointer active:scale-95 dl-action-btn"
+                className="p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold cursor-pointer active:scale-95 dl-action-btn"
               >
                 <span className="text-amber-700 dark:text-amber-400 font-bold">JSON</span>
                 <span className={`text-xs font-mono font-bold ${textMuted}`}>.json</span>
@@ -570,7 +570,7 @@ export function DownloadView({
               <button
                 type="button"
                 onClick={() => handleDownloadResult("tsv")}
-                className={`p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 dl-action-btn`}
+                className={`p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 dl-action-btn`}
               >
                 <span className={textTitle}>TSV</span>
                 <span className={`text-xs font-mono font-bold ${textMuted}`}>.tsv</span>
@@ -580,7 +580,7 @@ export function DownloadView({
               <button
                 type="button"
                 onClick={() => handleDownloadResult("sql")}
-                className={`p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 dl-action-btn`}
+                className={`p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 dl-action-btn`}
               >
                 <span className={textTitle}>SQL</span>
                 <span className={`text-xs font-mono font-bold ${textMuted}`}>.sql</span>
@@ -590,7 +590,7 @@ export function DownloadView({
               <button
                 type="button"
                 onClick={() => handleDownloadResult("db")}
-                className={`col-span-2 p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer shadow-xs active:scale-95 dl-db-btn`}
+                className={`col-span-2 p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer shadow-xs active:scale-95 dl-db-btn`}
               >
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4" style={{ color: "var(--accent)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -598,7 +598,7 @@ export function DownloadView({
                   </svg>
                   <span className={`font-bold ${textTitle}`}>SQLite Database (.db)</span>
                 </span>
-                <span className="text-xs font-mono font-bold uppercase px-2 py-0.5 rounded border" style={{ background: "rgba(var(--accent-rgb, 255, 106, 61), 0.15)", borderColor: "rgba(var(--accent-rgb, 255, 106, 61), 0.3)", color: "var(--accent)" }}>Binary .db</span>
+                <span className="text-xs font-mono font-bold uppercase px-2 py-0.5 rounded-md border" style={{ background: "rgba(var(--accent-rgb, 255, 106, 61), 0.15)", borderColor: "rgba(var(--accent-rgb, 255, 106, 61), 0.3)", color: "var(--accent)" }}>Binary .db</span>
               </button>
             </div>
           </div>
@@ -624,13 +624,13 @@ export function DownloadView({
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 shrink-0">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 shrink-0">
                 Chen Notation
               </span>
             </div>
 
             <div
-              className="p-4 rounded-xl border text-sm space-y-2 shadow-2xs"
+              className="p-4 rounded-lg border text-sm space-y-2 shadow-2xs"
               style={{ background: "var(--surface-subtle)", borderColor: "var(--border)" }}
             >
               <div className="flex items-center justify-between text-xs sm:text-sm">
@@ -654,9 +654,9 @@ export function DownloadView({
                 type="button"
                 onClick={() => handleDownloadER("svg")}
                 disabled={downloadingFormat === "er-svg"}
-                className="p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
+                className="p-4 rounded-lg border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
               >
-                <span className="text-xs font-mono px-2.5 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 font-bold">
+                <span className="text-xs font-mono px-2.5 py-0.5 rounded-md bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 font-bold">
                   SVG
                 </span>
                 <span className={`text-sm sm:text-base font-bold ${textTitle}`}>Vector Graphics (.svg)</span>
@@ -668,9 +668,9 @@ export function DownloadView({
                 type="button"
                 onClick={() => handleDownloadER("png")}
                 disabled={downloadingFormat === "er-png"}
-                className="p-4 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
+                className="p-4 rounded-lg border flex flex-col items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 dl-action-btn"
               >
-                <span className="text-xs font-mono px-2.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-bold">
+                <span className="text-xs font-mono px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-bold">
                   PNG
                 </span>
                 <span className={`text-sm sm:text-base font-bold ${textTitle}`}>High-Res Image (.png)</span>
@@ -700,13 +700,13 @@ export function DownloadView({
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0">
                 {history.length} Queries Stored
               </span>
             </div>
 
             <div
-              className="p-4 rounded-xl border text-sm max-h-28 overflow-y-auto space-y-2 scrollbar-thin shadow-2xs"
+              className="p-4 rounded-lg border text-sm max-h-28 overflow-y-auto space-y-2 scrollbar-thin shadow-2xs"
               style={{ background: "var(--surface-subtle)", borderColor: "var(--border)" }}
             >
               {history.length === 0 ? (
@@ -730,7 +730,7 @@ export function DownloadView({
                 type="button"
                 onClick={() => handleDownloadHistory("json")}
                 disabled={history.length === 0}
-                className={`p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 disabled:opacity-40 dl-action-btn`}
+                className={`p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 disabled:opacity-40 dl-action-btn`}
               >
                 <span className={textTitle}>JSON</span>
                 <span className={`text-xs font-mono font-bold ${textMuted}`}>.json</span>
@@ -740,7 +740,7 @@ export function DownloadView({
                 type="button"
                 onClick={() => handleDownloadHistory("csv")}
                 disabled={history.length === 0}
-                className={`p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 disabled:opacity-40 dl-action-btn`}
+                className={`p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 disabled:opacity-40 dl-action-btn`}
               >
                 <span className={textTitle}>CSV</span>
                 <span className={`text-xs font-mono font-bold ${textMuted}`}>.csv</span>
@@ -750,7 +750,7 @@ export function DownloadView({
                 type="button"
                 onClick={() => handleDownloadHistory("md")}
                 disabled={history.length === 0}
-                className={`p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 disabled:opacity-40 dl-action-btn`}
+                className={`p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 disabled:opacity-40 dl-action-btn`}
               >
                 <span className={textTitle}>Markdown</span>
                 <span className={`text-xs font-mono font-bold ${textMuted}`}>.md</span>
@@ -760,7 +760,7 @@ export function DownloadView({
                 type="button"
                 onClick={() => handleDownloadHistory("sql")}
                 disabled={history.length === 0}
-                className={`p-3 sm:p-3.5 rounded-xl border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 disabled:opacity-40 dl-action-btn`}
+                className={`p-3 sm:p-3.5 rounded-lg border flex items-center justify-between text-sm font-bold ${textTitle} cursor-pointer active:scale-95 disabled:opacity-40 dl-action-btn`}
               >
                 <span className={textTitle}>SQL Log</span>
                 <span className={`text-xs font-mono font-bold ${textMuted}`}>.sql</span>
@@ -788,7 +788,7 @@ export function DownloadView({
           <button
             type="button"
             onClick={handleExportDatasetSQL}
-            className="text-sm px-4 py-2 rounded-xl border font-bold flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-95 text-white"
+            className="text-sm px-4 py-2 rounded-lg border font-bold flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-95 text-white"
             style={{
               background: "var(--accent-gradient)",
               borderColor: "var(--accent)",
@@ -804,7 +804,7 @@ export function DownloadView({
               key={tbl.name}
               type="button"
               onClick={() => handleExportTableCSV(tbl)}
-              className="p-3.5 rounded-xl border flex items-center justify-between text-sm cursor-pointer shadow-2xs active:scale-95 dl-action-btn"
+              className="p-3.5 rounded-lg border flex items-center justify-between text-sm cursor-pointer shadow-2xs active:scale-95 dl-action-btn"
             >
               <span className={`font-mono text-sm font-bold truncate ${textTitle}`}>{tbl.name}.csv</span>
               <span className={`text-xs font-bold shrink-0 ml-2 ${textMuted}`}>{tbl.rows?.length ?? 0} rows</span>

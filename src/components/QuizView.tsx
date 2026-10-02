@@ -802,7 +802,7 @@ export function QuizView({ mode, onBackToWorkspace }: QuizViewProps) {
                     {isFirstAttempted && (
                       <div className="flex items-center gap-3 my-2">
                         <div className="h-px bg-zinc-200 dark:bg-zinc-800 flex-1" />
-                        <span className="text-xs font-semibold px-3 py-1 rounded-full border bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 flex items-center gap-1.5 shadow-2xs">
+                        <span className="text-xs font-semibold px-3 py-1 rounded-md border bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 flex items-center gap-1.5 shadow-2xs">
                           <span>✓</span>
                           <span>Attempted Questions ({stats.attempted})</span>
                         </span>
@@ -1088,7 +1088,7 @@ function QuestionCard({
 
           {/* Difficulty Badge */}
           <span
-            className="text-[11px] font-bold px-2.5 py-0.5 rounded-full border uppercase tracking-wider"
+            className="text-[11px] font-bold px-2.5 py-0.5 rounded-md border uppercase tracking-wider"
             style={{
               background: diffStyle.bg,
               color: diffStyle.text,
@@ -1222,7 +1222,7 @@ function QuestionCard({
                   onClick={() => {
                     if (!isSubmitted) setSelectedOption(optIdx);
                   }}
-                  className={`w-full flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all select-none ${
+                  className={`w-full flex items-center gap-3 p-3.5 rounded-lg border text-left transition-all select-none ${
                     isSubmitted
                       ? "cursor-default"
                       : "cursor-pointer hover:border-[var(--accent)] active:scale-[0.99]"
@@ -1311,7 +1311,7 @@ function QuestionCard({
               <button
                 type="button"
                 onClick={isMcq ? handleMcqSubmit : handleScriptSubmit}
-                className="px-5 py-2 rounded-xl text-xs sm:text-sm font-bold border transition-all cursor-pointer shadow-xs active:scale-95"
+                className="px-5 py-2 rounded-lg text-xs sm:text-sm font-bold border transition-all cursor-pointer shadow-xs active:scale-95"
                 style={{
                   background: "var(--accent)",
                   borderColor: "var(--accent)",
@@ -1324,7 +1324,7 @@ function QuestionCard({
               <button
                 type="button"
                 onClick={handleRetry}
-                className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all cursor-pointer hover:bg-[var(--surface-hover)] shadow-2xs"
+                className="px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold border transition-all cursor-pointer hover:bg-[var(--surface-hover)] shadow-2xs"
                 style={{
                   background: "var(--surface-subtle)",
                   borderColor: "var(--border)",

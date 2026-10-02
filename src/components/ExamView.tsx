@@ -311,7 +311,7 @@ export function ExamView({
       <div className="max-w-[1540px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 flex-1 flex flex-col gap-5">
         {/* Controls Toolbar: Search & Filters */}
         <div
-          className="p-4 sm:p-5 rounded-2xl border flex flex-col gap-3.5 shadow-sm"
+          className="p-4 sm:p-5 rounded-xl border flex flex-col gap-3.5 shadow-sm"
           style={{
             background: "var(--panel)",
             borderColor: "var(--border)",
@@ -333,7 +333,7 @@ export function ExamView({
                 placeholder="Search by topic, year, or keywords (e.g. HAVING, JOIN, TRIGGER, CURSOR)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-16 py-2.5 rounded-xl text-xs sm:text-sm border transition-all focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                className="w-full pl-10 pr-16 py-2.5 rounded-lg text-xs sm:text-sm border transition-all focus:outline-none focus:ring-2 focus:ring-sky-500/40"
                 style={{
                   background: "var(--surface-subtle)",
                   borderColor: "var(--border)",
@@ -344,7 +344,7 @@ export function ExamView({
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded cursor-pointer"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded-md cursor-pointer"
                 >
                   Clear
                 </button>
@@ -353,7 +353,7 @@ export function ExamView({
 
             {/* Showing results count badge */}
             <div
-              className="hidden sm:flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-mono text-[var(--muted)] shrink-0"
+              className="hidden sm:flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-mono text-[var(--muted)] shrink-0"
               style={{ background: "var(--surface-subtle)", borderColor: "var(--border)" }}
             >
               <span>Showing:</span>
@@ -369,7 +369,7 @@ export function ExamView({
               <select
                 value={selectedExam}
                 onChange={(e) => setSelectedExam(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl text-xs font-medium border cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500/40"
+                className="w-full px-3 py-2 rounded-lg text-xs font-medium border cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500/40"
                 style={{
                   background: "var(--surface-subtle)",
                   borderColor: "var(--border)",
@@ -391,7 +391,7 @@ export function ExamView({
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl text-xs font-medium border cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500/40"
+                className="w-full px-3 py-2 rounded-lg text-xs font-medium border cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500/40"
                 style={{
                   background: "var(--surface-subtle)",
                   borderColor: "var(--border)",
@@ -413,7 +413,7 @@ export function ExamView({
               <select
                 value={selectedSort}
                 onChange={(e) => setSelectedSort(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl text-xs font-semibold border cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500/40"
+                className="w-full px-3 py-2 rounded-lg text-xs font-semibold border cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500/40"
                 style={{
                   background: "var(--surface-subtle)",
                   borderColor: "var(--border)",
@@ -434,7 +434,7 @@ export function ExamView({
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl text-xs font-medium border cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500/40"
+                className="w-full px-3 py-2 rounded-lg text-xs font-medium border cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500/40"
                 style={{
                   background: "var(--surface-subtle)",
                   borderColor: "var(--border)",
@@ -453,7 +453,7 @@ export function ExamView({
               <select
                 value={selectedDifficulty}
                 onChange={(e) => setSelectedDifficulty(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl text-xs font-medium border cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500/40"
+                className="w-full px-3 py-2 rounded-lg text-xs font-medium border cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500/40"
                 style={{
                   background: "var(--surface-subtle)",
                   borderColor: "var(--border)",
@@ -473,7 +473,7 @@ export function ExamView({
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="px-3 py-2 rounded-xl text-xs font-semibold border text-sky-700 dark:text-sky-400 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20 transition-colors cursor-pointer shrink-0"
+                className="px-3 py-2 rounded-lg text-xs font-semibold border text-sky-700 dark:text-sky-400 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20 transition-colors cursor-pointer shrink-0"
                 title="Reset all filters"
               >
                 Reset Filters
@@ -481,7 +481,7 @@ export function ExamView({
             )}
 
             {/* Expand / Collapse All Questions */}
-            <div className="flex items-center rounded-xl border p-0.5 ml-auto shrink-0 shadow-2xs" style={{ borderColor: "var(--border)", background: "var(--surface-subtle)" }}>
+            <div className="flex items-center rounded-lg border p-0.5 ml-auto shrink-0 shadow-2xs" style={{ borderColor: "var(--border)", background: "var(--surface-subtle)" }}>
               <button
                 type="button"
                 onClick={expandAllQuestions}
@@ -506,7 +506,7 @@ export function ExamView({
         {/* Empty State */}
         {filteredQuestions.length === 0 && (
           <div
-            className="p-12 text-center rounded-2xl border flex flex-col items-center justify-center gap-3 my-4"
+            className="p-12 text-center rounded-xl border flex flex-col items-center justify-center gap-3 my-4"
             style={{
               background: "var(--panel)",
               borderColor: "var(--border)",
@@ -544,7 +544,7 @@ export function ExamView({
             return (
               <article
                 key={q.id}
-                className="rounded-xl border transition-all duration-200 overflow-hidden shadow-xs"
+                className="rounded-lg border transition-all duration-200 overflow-hidden shadow-xs"
                 style={{
                   background: "var(--panel)",
                   borderColor: isQuestionExpanded ? (mode === "sql" ? "rgba(2, 132, 199, 0.45)" : "rgba(234, 88, 12, 0.45)") : "var(--border)",
@@ -565,7 +565,7 @@ export function ExamView({
                   <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
                     {/* Question Number */}
                     <span
-                      className="px-2 py-0.5 rounded font-mono text-xs font-bold border shrink-0"
+                      className="px-2 py-0.5 rounded-md font-mono text-xs font-bold border shrink-0"
                       style={{
                         background: "var(--surface-subtle)",
                         borderColor: "var(--border)",
@@ -589,19 +589,19 @@ export function ExamView({
 
                     {/* Paper Details (e.g. Set 2, Q41) */}
                     {q.paperDetails && (
-                      <span className="hidden md:inline text-[11px] font-mono text-[var(--muted)] px-2 py-0.5 rounded border border-[var(--border)] bg-[var(--background)]">
+                      <span className="hidden md:inline text-[11px] font-mono text-[var(--muted)] px-2 py-0.5 rounded-md border border-[var(--border)] bg-[var(--background)]">
                         {q.paperDetails}
                       </span>
                     )}
 
                     {/* Topic Pill */}
-                    <span className="hidden sm:inline text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] truncate max-w-[200px] lg:max-w-none">
+                    <span className="hidden sm:inline text-xs font-medium px-2 py-0.5 rounded-md bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] truncate max-w-[200px] lg:max-w-none">
                       {q.topic}
                     </span>
 
                     {/* Question Type Tag (Plain black & white / monochrome) */}
                     <span
-                      className="text-[10px] font-mono font-medium px-2 py-0.5 rounded border uppercase tracking-wider shrink-0"
+                      className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-md border uppercase tracking-wider shrink-0"
                       style={{
                         background: "var(--surface-subtle)",
                         borderColor: "var(--border)",
@@ -613,7 +613,7 @@ export function ExamView({
 
                     {/* Difficulty Badge (ONLY element keeping colors) */}
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider shrink-0 ${getDifficultyBadge(
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider shrink-0 ${getDifficultyBadge(
                         q.difficulty
                       )}`}
                     >
@@ -623,7 +623,7 @@ export function ExamView({
                     {/* Result badge if already attempted */}
                     {status && (
                       <span
-                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${status.isCorrect
+                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${status.isCorrect
                           ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
                           : "bg-rose-500/20 text-rose-400 border-rose-500/40"
                           }`}
@@ -667,7 +667,7 @@ export function ExamView({
                           Database Schema & Tuples:
                         </span>
                         <pre
-                          className="p-3.5 rounded-xl border text-xs sm:text-[13px] font-mono overflow-x-auto leading-relaxed"
+                          className="p-3.5 rounded-lg border text-xs sm:text-[13px] font-mono overflow-x-auto leading-relaxed"
                           style={{
                             background: "var(--background)",
                             borderColor: "var(--border)",
@@ -689,7 +689,7 @@ export function ExamView({
                           <button
                             type="button"
                             onClick={() => handleCopyCode(q.id, q.codeSnippet!)}
-                            className="px-2.5 py-1 rounded text-[11px] font-mono border hover:bg-[var(--surface-hover)] transition-colors cursor-pointer flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-md text-[11px] font-mono border hover:bg-[var(--surface-hover)] transition-colors cursor-pointer flex items-center gap-1"
                             style={{
                               borderColor: "var(--border)",
                               color: "var(--muted)",
@@ -710,7 +710,7 @@ export function ExamView({
                         </div>
 
                         <div
-                          className="rounded-xl border p-4 font-mono text-xs sm:text-[13px] overflow-x-auto leading-relaxed exam-code-box shadow-xs"
+                          className="rounded-lg border p-4 font-mono text-xs sm:text-[13px] overflow-x-auto leading-relaxed exam-code-box shadow-xs"
                           style={{
                             background: "var(--surface-subtle)",
                             borderColor: "var(--border)",
@@ -758,7 +758,7 @@ export function ExamView({
                                   key={opt.key}
                                   type="button"
                                   onClick={() => handleSelectMcq(q, opt.key)}
-                                  className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${isCorrect
+                                  className={`p-3 rounded-lg border text-left flex items-start gap-3 transition-all cursor-pointer ${isCorrect
                                     ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-700 dark:text-emerald-400 font-semibold"
                                     : isWrong
                                       ? "bg-rose-500/10 border-rose-500/50 text-rose-700 dark:text-rose-400 font-medium"
@@ -771,7 +771,7 @@ export function ExamView({
                                   }}
                                 >
                                   <span
-                                    className={`w-6 h-6 rounded-lg flex items-center justify-center font-mono text-xs font-bold shrink-0 border ${isCorrect
+                                    className={`w-6 h-6 rounded-md flex items-center justify-center font-mono text-xs font-bold shrink-0 border ${isCorrect
                                       ? "bg-emerald-500 text-white border-emerald-600"
                                       : isWrong
                                         ? "bg-rose-500 text-white border-rose-600"
@@ -800,7 +800,7 @@ export function ExamView({
                             <span className="text-xs font-mono uppercase tracking-wider text-[var(--muted)] font-bold">
                               Enter Answer:
                             </span>
-                            <span className="text-[11px] font-mono text-sky-800 dark:text-sky-400 font-semibold bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded">
+                            <span className="text-[11px] font-mono text-sky-800 dark:text-sky-400 font-semibold bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-md">
                               {q.answerTypeHint || "Numerical value (e.g. integer or decimal)"}
                             </span>
                           </div>
@@ -820,7 +820,7 @@ export function ExamView({
                                   if (e.key === "Enter") handleCheckNumericalAnswer(q);
                                 }}
                                 placeholder={q.answerTypeHint || "Enter numerical answer..."}
-                                className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm font-mono border focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                                className="w-full px-3.5 py-2 rounded-lg text-xs sm:text-sm font-mono border focus:outline-none focus:ring-2 focus:ring-sky-500/40"
                                 style={{
                                   background: "var(--surface-subtle)",
                                   borderColor: status
@@ -836,7 +836,7 @@ export function ExamView({
                             <button
                               type="button"
                               onClick={() => handleCheckNumericalAnswer(q)}
-                              className="px-4 py-2 rounded-xl text-xs font-bold font-mono border transition-all cursor-pointer shadow-xs bg-sky-500/15 border-sky-500/35 text-sky-800 dark:text-sky-400 hover:bg-sky-500/25 shrink-0"
+                              className="px-4 py-2 rounded-lg text-xs font-bold font-mono border transition-all cursor-pointer shadow-xs bg-sky-500/15 border-sky-500/35 text-sky-800 dark:text-sky-400 hover:bg-sky-500/25 shrink-0"
                             >
                               Check
                             </button>
@@ -869,7 +869,7 @@ export function ExamView({
                         type="button"
                         onClick={() => toggleSolutionExpand(q.id)}
                         aria-expanded={isSolutionExpanded}
-                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 cursor-pointer border shadow-xs"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-200 cursor-pointer border shadow-xs"
                         style={{
                           background: isSolutionExpanded ? "rgba(16, 185, 129, 0.12)" : "var(--surface-subtle)",
                           borderColor: isSolutionExpanded ? "rgba(16, 185, 129, 0.4)" : "var(--border)",
@@ -901,7 +901,7 @@ export function ExamView({
                     {/* ── COLLAPSIBLE SOLUTION BODY ── */}
                     {isSolutionExpanded && (
                       <div
-                        className="rounded-xl border p-4 sm:p-5 flex flex-col gap-4 animate-in fade-in duration-200"
+                        className="rounded-lg border p-4 sm:p-5 flex flex-col gap-4 animate-in fade-in duration-200"
                         style={{
                           background: "rgba(16, 185, 129, 0.03)",
                           borderColor: "rgba(16, 185, 129, 0.3)",
@@ -963,7 +963,7 @@ export function ExamView({
                                 </p>
                                 {st.codeSnippet && (
                                   <pre
-                                    className={`ml-7 p-2 rounded border text-[11px] font-mono overflow-x-auto font-semibold ${
+                                    className={`ml-7 p-2 rounded-md border text-[11px] font-mono overflow-x-auto font-semibold ${
                                       q.category === "sql"
                                         ? "text-sky-900 dark:text-sky-300 exam-code-sql"
                                         : "text-amber-950 dark:text-orange-300 exam-code-plsql"

@@ -699,7 +699,7 @@ export default function App() {
 
       {plsqlToast && (
         <div
-          className="absolute top-6 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium shadow-[0_0_30px_rgba(255,91,57,0.35)] flex items-center gap-3 backdrop-blur-md animate-bounce"
+          className="absolute top-6 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-lg text-xs sm:text-sm font-medium shadow-[0_0_30px_rgba(255,91,57,0.35)] flex items-center gap-3 backdrop-blur-md animate-bounce"
           style={{
             background: "rgba(26,10,6,0.95)",
             border: "1px solid rgba(255,91,57,0.45)",
@@ -760,7 +760,7 @@ export default function App() {
           <div className="relative z-10 w-full max-w-lg space-y-2.5 sm:space-y-4 md:space-y-8 flex flex-col items-center py-2">
             <div className="flex justify-center">
               <span
-                className="text-[10px] sm:text-xs px-3 sm:px-4 py-1 sm:py-1.5 rounded-full border backdrop-blur-md"
+                className="text-[10px] sm:text-xs px-3 sm:px-4 py-1 sm:py-1.5 rounded-lg border backdrop-blur-md"
                 style={{
                   color: "#E2F7FF",
                   borderColor: "rgba(125,211,252,0.35)",
@@ -797,7 +797,7 @@ export default function App() {
             <div className="flex md:hidden justify-center pt-1.5 w-full">
               <Link
                 href="/sql"
-                className="group inline-flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-300 active:scale-95 text-[#F3FBFF]"
+                className="group inline-flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 active:scale-95 text-[#F3FBFF]"
                 style={{
                   background:
                     "linear-gradient(135deg, rgba(14, 165, 233, 0.22) 0%, rgba(8, 18, 33, 0.9) 100%)",
@@ -874,7 +874,7 @@ export default function App() {
           <div className="relative z-10 w-full max-w-lg space-y-2.5 sm:space-y-4 md:space-y-8 flex flex-col items-center py-2">
             <div className="flex justify-center">
               <span
-                className="text-[10px] sm:text-xs px-3 sm:px-4 py-1 sm:py-1.5 rounded-full border backdrop-blur-md"
+                className="text-[10px] sm:text-xs px-3 sm:px-4 py-1 sm:py-1.5 rounded-lg border backdrop-blur-md"
                 style={{
                   color: "#FFFFFF",
                   borderColor: "rgba(234,94,255,0.35)",
@@ -911,7 +911,7 @@ export default function App() {
             <div className="flex md:hidden justify-center pt-1.5 w-full">
               <Link
                 href="/plsql"
-                className="group inline-flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-300 active:scale-95 text-[#fce3f0]"
+                className="group inline-flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 active:scale-95 text-[#fce3f0]"
                 style={{
                   background:
                     "linear-gradient(135deg, rgba(168, 85, 247, 0.22) 0%, rgba(40, 9, 52, 0.9) 100%)",
