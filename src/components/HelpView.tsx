@@ -42,9 +42,8 @@ function HelpSubcard({
         }}
       >
         <span
-          className={`font-semibold text-xs md:text-sm uppercase tracking-wider ${
-            highlight ? "text-emerald-500 font-bold" : "text-[var(--accent)]"
-          }`}
+          className={`font-semibold text-xs md:text-sm uppercase tracking-wider ${highlight ? "text-emerald-500 font-bold" : "text-[var(--accent)]"
+            }`}
         >
           {title}
         </span>
@@ -328,21 +327,6 @@ export function HelpView({ onBackToWorkspace }: HelpViewProps) {
         style={{ borderColor: "var(--border)" }}
       >
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span
-              className="text-sm font-semibold px-2.5 py-1 rounded border"
-              style={{
-                background: "var(--surface-subtle)",
-                borderColor: "var(--accent)",
-                color: "var(--accent)",
-              }}
-            >
-              User Manual
-            </span>
-            <span className="text-sm opacity-70" style={{ color: "var(--muted)" }}>
-              Step-by-Step Operating Guide
-            </span>
-          </div>
           <h1
             className="text-2xl md:text-4xl font-bold tracking-tight"
             style={{ color: "var(--foreground)" }}
@@ -416,9 +400,8 @@ export function HelpView({ onBackToWorkspace }: HelpViewProps) {
               {quickStartOpen ? "Collapse" : "Click to view"}
             </span>
             <svg
-              className={`w-4 h-4 transition-transform duration-200 ${
-                quickStartOpen ? "rotate-180" : ""
-              }`}
+              className={`w-4 h-4 transition-transform duration-200 ${quickStartOpen ? "rotate-180" : ""
+                }`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -536,9 +519,8 @@ export function HelpView({ onBackToWorkspace }: HelpViewProps) {
                     {isOpen ? "Collapse" : "Click to view"}
                   </span>
                   <svg
-                    className={`w-4 h-4 transition-transform duration-200 ${
-                      isOpen ? "rotate-180" : ""
-                    }`}
+                    className={`w-4 h-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
+                      }`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"

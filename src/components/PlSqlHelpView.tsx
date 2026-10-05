@@ -117,7 +117,7 @@ const HELP_SECTIONS = [
   },
 ];
 
-export function PlSqlHelpView({}: PlSqlHelpViewProps) {
+export function PlSqlHelpView({ }: PlSqlHelpViewProps) {
   return (
     <main
       className="flex-1 min-h-0 flex flex-col p-4 sm:p-6 md:p-8 lg:p-10 xl:p-12 overflow-y-auto overflow-x-hidden w-full max-w-none leading-relaxed"
@@ -130,24 +130,6 @@ export function PlSqlHelpView({}: PlSqlHelpViewProps) {
         style={{ borderColor: "var(--border)" }}
       >
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span
-              className="text-sm font-semibold px-2.5 py-1 rounded border"
-              style={{
-                background: "var(--surface-subtle)",
-                borderColor: "var(--accent)",
-                color: "var(--accent)",
-              }}
-            >
-              PL/SQL Studio Reference Manual
-            </span>
-            <span
-              className="text-sm opacity-70"
-              style={{ color: "var(--muted)" }}
-            >
-              Step-by-step Guides, Controls &amp; Syntax Reference
-            </span>
-          </div>
           <h1
             className="text-2xl md:text-4xl font-bold tracking-tight"
             style={{ color: "var(--foreground)" }}

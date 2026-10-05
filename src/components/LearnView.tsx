@@ -44,9 +44,8 @@ function LearnSubcard({
         }}
       >
         <span
-          className={`font-semibold text-xs md:text-sm uppercase tracking-wider ${
-            highlight ? "text-emerald-500 font-bold" : "text-[var(--accent)]"
-          }`}
+          className={`font-semibold text-xs md:text-sm uppercase tracking-wider ${highlight ? "text-emerald-500 font-bold" : "text-[var(--accent)]"
+            }`}
         >
           {title}
         </span>
@@ -177,9 +176,8 @@ function LearnCard({
             {isOpen ? "Collapse" : "Click to view"}
           </span>
           <svg
-            className={`w-4 h-4 transition-transform duration-200 ${
-              isOpen ? "rotate-180" : ""
-            }`}
+            className={`w-4 h-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
+              }`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -248,24 +246,6 @@ export function LearnView({ onBackToWorkspace }: LearnViewProps) {
         style={{ borderColor: "var(--border)" }}
       >
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span
-              className="text-sm font-semibold px-2.5 py-1 rounded border"
-              style={{
-                background: "var(--surface-subtle)",
-                borderColor: "var(--accent)",
-                color: "var(--accent)",
-              }}
-            >
-              SQL Curriculum &amp; Command Guide
-            </span>
-            <span
-              className="text-sm opacity-70"
-              style={{ color: "var(--muted)" }}
-            >
-              Complete SQL Commands, Sublanguages &amp; Engine Internals
-            </span>
-          </div>
           <h1
             className="text-2xl md:text-4xl font-bold tracking-tight"
             style={{ color: "var(--foreground)" }}

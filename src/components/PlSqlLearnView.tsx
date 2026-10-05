@@ -262,24 +262,6 @@ export function PlSqlLearnView({ }: PlSqlLearnViewProps) {
         style={{ borderColor: "var(--border)" }}
       >
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span
-              className="text-sm font-semibold px-2.5 py-1 rounded border"
-              style={{
-                background: "var(--surface-subtle)",
-                borderColor: "var(--accent)",
-                color: "var(--accent)",
-              }}
-            >
-              PL/SQL Curriculum &amp; Procedural Guide
-            </span>
-            <span
-              className="text-sm opacity-70"
-              style={{ color: "var(--muted)" }}
-            >
-              Complete PL/SQL Blocks, Cursors, Loops, Packages, Triggers &amp; Engine Internals
-            </span>
-          </div>
           <h1
             className="text-2xl md:text-4xl font-bold tracking-tight"
             style={{ color: "var(--foreground)" }}
