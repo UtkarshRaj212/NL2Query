@@ -1155,27 +1155,59 @@ export function LearnView({ onBackToWorkspace }: LearnViewProps) {
             </LearnCard>
           )}
 
-        {/* Card 30: Educational Video Breakdown & Academic Bibliography */}
+        {/* Card 30: REFERENCES & YOUTUBE VIDEO EMBED */}
         {(selectedModule === "all" || selectedModule === "references") &&
-          ("educational video breakdown & academic bibliography".includes(searchQuery.toLowerCase()) ||
+          ("references & youtube video embed".includes(searchQuery.toLowerCase()) ||
+            "educational video breakdown & academic bibliography".includes(searchQuery.toLowerCase()) ||
             "media & bibliography".includes(searchQuery.toLowerCase()) ||
+            "references".includes(searchQuery.toLowerCase()) ||
+            "youtube".includes(searchQuery.toLowerCase()) ||
             searchQuery === "") && (
             <LearnCard
               id="sec-30"
               num="30"
               category="Media & Bibliography"
-              title="Educational Video Breakdown & Academic Bibliography"
-              preview="Interactive video lecture on SQL fundamentals and authoritative textbooks, research papers, and standards."
+              title="REFERENCES & YOUTUBE VIDEO EMBED"
+              preview="Authoritative academic textbooks, standards, research papers, and embedded SQL video lecture."
               isOpen={!!openCards["sec-30"]}
               onToggle={() => toggleCard("sec-30")}
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <LearnSubcard title="Command Syntax &amp; Clauses:" content={"Curated Courseware & Authoritative ISO/IEC 9075 Standards"} isCode={true} />
-                <LearnSubcard title="What it does &amp; Functionality:" content={"Provides multimedia learning resources and academic references for students and researchers. Includes an embedded SQL educational lecture and citations to seminal textbooks (Silberschatz, Ramakrishnan) and research papers (Spider, RAT-SQL)."} />
-                <LearnSubcard title="Code Example &amp; Practical Query:" content={"-- Academic References:\n-- 1. Silberschatz, Korth, Sudarshan (2020) 'Database System Concepts'\n-- 2. Edgar F. Codd (1970) 'A Relational Model of Data for Large Shared Data Banks'\n-- 3. ISO/IEC 9075:2023 SQL Standard Specification"} isCode={true} />
-                <LearnSubcard title="What happens during processing (Engine Behavior):" content={"Streams video from YouTube with full player controls and renders formatted academic citations."} />
+              <ol className="list-decimal list-inside space-y-2.5 text-xs sm:text-sm leading-relaxed opacity-90 pl-1" style={{ color: "var(--foreground)" }}>
+                <li>
+                  Silberschatz, A., Korth, H. F., &amp; Sudarshan, S. (2020). <em>Database System Concepts</em> (7th ed.). McGraw-Hill Education.
+                </li>
+                <li>
+                  Codd, E. F. (1970). <em>A Relational Model of Data for Large Shared Data Banks</em>. Communications of the ACM, 13(6), 377–387.
+                </li>
+                <li>
+                  ISO/IEC 9075:2023. <em>Information technology — Database languages — SQL</em>. International Organization for Standardization.
+                </li>
+                <li>
+                  Ramakrishnan, R., &amp; Gehrke, J. (2003). <em>Database Management Systems</em> (3rd ed.). McGraw-Hill Education.
+                </li>
+                <li>
+                  Garcia-Molina, H., Ullman, J. D., &amp; Widom, J. (2008). <em>Database Systems: The Complete Book</em> (2nd ed.). Pearson Prentice Hall.
+                </li>
+                <li>
+                  Yu, T., Zhang, R., et al. (2018). <em>Spider: A Large-Scale Human-Labeled Dataset for Complex and Cross-Domain Semantic Parsing and Text-to-SQL Task</em>. Proceedings of EMNLP 2018.
+                </li>
+                <li>
+                  Wang, B., Shin, R., et al. (2020). <em>RAT-SQL: Relation-Aware Schema Encoding and Linking for Text-to-SQL Parsers</em>. Proceedings of ACL 2020.
+                </li>
+              </ol>
+
+              <div
+                className="relative w-full aspect-video rounded-xl overflow-hidden border shadow-lg bg-black/40"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <iframe
+                  className="w-full h-full"
+                  src="https://www.youtube-nocookie.com/embed/SSKVgrwhzus"
+                  title="SQL Full Course for Beginners"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
               </div>
-              <LearnSubcard title="Performance, Indexing &amp; Complexity Tips:" content={"Consult academic textbooks for formal relational algebra proofs and query optimization mathematics."} highlight={true} />
             </LearnCard>
           )}
       </div>
