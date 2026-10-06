@@ -60,6 +60,7 @@ export interface PlSqlInputPanelProps {
 export function PlSqlInputPanel({
   datasets,
   selectedDatasetId,
+  activeSchema = [],
   minPanelHeight,
   maxPanelHeight,
   panelHeight,
@@ -473,19 +474,19 @@ export function PlSqlInputPanel({
 
               {/* Clean table pills */}
               {(() => {
-                const tablesToShow =
+                const tablesToShow: string[] =
                   diagnostic.availableTables && diagnostic.availableTables.length > 0
                     ? diagnostic.availableTables
                     : diagnostic.suggestedTables && diagnostic.suggestedTables.length > 0
                       ? diagnostic.suggestedTables
-                      : activeSchema?.map((t) => t.name) || [];
+                      : activeSchema.map((t) => t.name);
 
                 if (!tablesToShow || tablesToShow.length === 0) return null;
 
                 return (
                   <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                     <span className="text-[11px] text-zinc-400 font-medium">Available tables:</span>
-                    {tablesToShow.map((tbl) => (
+                    {tablesToShow.map((tbl: string) => (
                       <button
                         key={tbl}
                         type="button"
