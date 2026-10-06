@@ -155,7 +155,6 @@ export default function App() {
         />
       </div>
 
-      {/* Centered Top Heading: NL2QUERY */}
       <div className="absolute top-8 sm:top-12 left-1/2 -translate-x-1/2 z-30 pointer-events-none select-none text-center">
         <TypewriterHeading
           text="NL2QUERY"
@@ -163,7 +162,9 @@ export default function App() {
           style={{
             fontSize: "clamp(3.2rem, 8vw, 6.5rem)",
             textShadow:
-              "0 0 40px rgba(255,255,255,0.4), 0 0 80px rgba(0,237,255,0.2), 0 0 80px rgba(234,179,8,0.2)",
+              "0 0 20px rgba(0,0,0,0.45), " +
+              "0 0 45px rgba(0,0,0,0.28), " +
+              "0 0 70px rgba(0,0,0,0.15)",
             letterSpacing: "-0.01em",
           }}
         />
@@ -220,17 +221,11 @@ export default function App() {
                   fontSize: "clamp(2.5rem, 6vw, 4.75rem)",
                   color: "#F3FBFF",
                   textShadow:
-                    "0 0 40px rgba(0,237,255,0.55), 0 0 80px rgba(0,200,230,0.25)",
+                    "0 0 20px rgba(0,0,0,0.45), " +
+                    "0 0 45px rgba(0,0,0,0.28), " +
+                    "0 0 70px rgba(0,0,0,0.15)",
                 }}
               />
-
-              {/* Subline
-              <p
-                className="text-xs sm:text-sm font-light tracking-wide max-w-xs mx-auto"
-                style={{ color: "rgba(200,246,255,0.75)" }}
-              >
-                Describe what you want.
-              </p> */}
 
               {/* CTA button */}
               <div className="mt-1 sm:mt-2">
@@ -291,7 +286,9 @@ export default function App() {
                   fontSize: "clamp(2.5rem, 6vw, 4.75rem)",
                   color: "#FFFDF0",
                   textShadow:
-                    "0 0 40px rgba(234,179,8,0.6), 0 0 80px rgba(180,130,0,0.25)",
+                    "0 0 20px rgba(0,0,0,0.45), " +
+                    "0 0 45px rgba(0,0,0,0.28), " +
+                    "0 0 70px rgba(0,0,0,0.15)",
                 }}
               />
 
