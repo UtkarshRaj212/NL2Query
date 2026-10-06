@@ -11,6 +11,10 @@ import {
   type ColumnType,
   type Table,
 } from "./schema";
+import {
+  validateSqlIdentifier,
+  suggestValidSqlIdentifier,
+} from "./sqlNamingRules";
 
 export type Row = Record<string, string | number>;
 
@@ -30,7 +34,9 @@ export type SQLCommand =
   | "UPDATE"
   | "DELETE"
   | "CREATE TABLE"
+  | "CREATE DATABASE"
   | "DROP TABLE"
+  | "DROP DATABASE"
   | "ALTER TABLE"
   | "TRUNCATE";
 
@@ -107,6 +113,18 @@ export interface ParsedCreateTableQuery {
   columns: Column[];
 }
 
+export interface ParsedCreateDatabaseQuery {
+  type: "CREATE DATABASE";
+  ifNotExists: boolean;
+  database: string;
+}
+
+export interface ParsedDropDatabaseQuery {
+  type: "DROP DATABASE";
+  ifExists: boolean;
+  database: string;
+}
+
 export interface ParsedDropTableQuery {
   type: "DROP TABLE";
   ifExists: boolean;
@@ -134,7 +152,9 @@ export type ParsedQuery =
   | ParsedUpdateQuery
   | ParsedDeleteQuery
   | ParsedCreateTableQuery
+  | ParsedCreateDatabaseQuery
   | ParsedDropTableQuery
+  | ParsedDropDatabaseQuery
   | ParsedAlterTableQuery
   | ParsedTruncateQuery;
 
@@ -389,23 +409,33 @@ export function parseSQL(sql: string, schema: Table[] = SCHEMA): ParsedQuery {
     return parseCreateTable(q);
   }
 
-  // 6. DDL: DROP TABLE
+  // 6. DDL: CREATE DATABASE / SCHEMA
+  if (/^create\s+(?:database|schema)\b/i.test(q)) {
+    return parseCreateDatabase(q);
+  }
+
+  // 7. DDL: DROP TABLE
   if (/^drop\s+table\b/i.test(q)) {
     return parseDropTable(q);
   }
 
-  // 7. DDL: ALTER TABLE
+  // 8. DDL: DROP DATABASE / SCHEMA
+  if (/^drop\s+(?:database|schema)\b/i.test(q)) {
+    return parseDropDatabase(q);
+  }
+
+  // 9. DDL: ALTER TABLE
   if (/^alter\s+table\b/i.test(q)) {
     return parseAlterTable(q, schema);
   }
 
-  // 8. DDL: TRUNCATE [TABLE]
+  // 10. DDL: TRUNCATE [TABLE]
   if (/^truncate\b/i.test(q)) {
     return parseTruncate(q, schema);
   }
 
   throw new Error(
-    `Unsupported SQL statement: "${q.slice(0, 30)}...". Supported commands: SELECT, INSERT INTO, UPDATE, DELETE FROM, CREATE TABLE, ALTER TABLE, DROP TABLE, TRUNCATE.`,
+    `Unsupported SQL statement: "${q.slice(0, 30)}...". Supported commands: SELECT, INSERT INTO, UPDATE, DELETE FROM, CREATE TABLE, CREATE DATABASE, ALTER TABLE, DROP TABLE, DROP DATABASE, TRUNCATE.`,
   );
 }
 
@@ -1036,17 +1066,30 @@ function parseDelete(q: string, schema: Table[]): ParsedDeleteQuery {
 }
 
 function parseCreateTable(q: string): ParsedCreateTableQuery {
+  // Capture optional "if not exists", table name candidate (stopping before "("), and body
   const match = q.match(
-    /^create\s+table\s+(if\s+not\s+exists\s+)?([\w]+)\s*\(([\s\S]+)\)$/i,
+    /^create\s+table(?:\s+(if\s+not\s+exists))?\s+([^(\s][^(]*?)\s*\(([\s\S]+)\)$/i,
   );
   if (!match) {
+    // Check if CREATE TABLE had spaces in table name without parentheses or other syntax issues
+    const unparenthesizedMatch = q.match(/^create\s+table(?:\s+if\s+not\s+exists)?\s+([^;(]+)$/i);
+    if (unparenthesizedMatch) {
+      const rawCandidate = unparenthesizedMatch[1].trim();
+      const val = validateSqlIdentifier(rawCandidate, "table");
+      if (!val.isValid) throw new Error(val.error);
+    }
     throw new Error(
       "Invalid CREATE TABLE syntax. Expected: CREATE TABLE table_name (col1 TYPE PRIMARY KEY, col2 TYPE REFERENCES other(id), ...);",
     );
   }
 
   const ifNotExists = Boolean(match[1]);
-  const tableName = match[2].toLowerCase();
+  const rawTableName = match[2].trim().replace(/^["`']|["`']$/g, "");
+  const tableVal = validateSqlIdentifier(rawTableName, "table");
+  if (!tableVal.isValid) {
+    throw new Error(tableVal.error);
+  }
+  const tableName = rawTableName.toLowerCase();
   const body = match[3].trim();
 
   const columnDefs = splitCsv(body);
@@ -1061,35 +1104,74 @@ function parseCreateTable(q: string): ParsedCreateTableQuery {
     const pkTableMatch = trimmed.match(/^primary\s+key\s*\(([\w,\s]+)\)$/i);
     if (pkTableMatch) {
       const pks = pkTableMatch[1].split(",").map((s) => s.trim().toLowerCase());
+      for (const pk of pks) {
+        const pkVal = validateSqlIdentifier(pk, "column");
+        if (!pkVal.isValid) throw new Error(`In PRIMARY KEY constraint: ${pkVal.error}`);
+      }
       tablePrimaryKeys.push(...pks);
       continue;
     }
 
     // Table-level FOREIGN KEY (col) REFERENCES other_table(col)
     const fkTableMatch = trimmed.match(
-      /^foreign\s+key\s*\(([\w]+)\)\s*references\s+([\w]+)\s*\(([\w]+)\)$/i,
+      /^foreign\s+key\s*\(([^)]+)\)\s*references\s+([^\s(]+)\s*\(([^)]+)\)$/i,
     );
     if (fkTableMatch) {
-      const colName = fkTableMatch[1].toLowerCase();
+      const colName = fkTableMatch[1].trim().toLowerCase();
+      const refTable = fkTableMatch[2].trim().toLowerCase();
+      const refCol = fkTableMatch[3].trim().toLowerCase();
+      const colVal = validateSqlIdentifier(colName, "column");
+      if (!colVal.isValid) throw new Error(`In FOREIGN KEY column: ${colVal.error}`);
+      const refTableVal = validateSqlIdentifier(refTable, "table");
+      if (!refTableVal.isValid) throw new Error(`In FOREIGN KEY target table: ${refTableVal.error}`);
+      const refColVal = validateSqlIdentifier(refCol, "column");
+      if (!refColVal.isValid) throw new Error(`In FOREIGN KEY target column: ${refColVal.error}`);
+
       const existingCol = columns.find((c) => c.name.toLowerCase() === colName);
       if (existingCol) {
         existingCol.fk = {
-          table: fkTableMatch[2].toLowerCase(),
-          column: fkTableMatch[3].toLowerCase(),
+          table: refTable,
+          column: refCol,
         };
       }
       continue;
     }
 
+    // Pre-check for space in column names before standard type e.g. "item name TEXT" or "first name VARCHAR(50)"
+    const parts = trimmed.split(/\s+/);
+    const knownDataTypes = new Set([
+      "INTEGER", "INT", "SMALLINT", "BIGINT", "TEXT", "VARCHAR", "CHAR",
+      "REAL", "FLOAT", "DOUBLE", "BOOLEAN", "DATE", "TIME", "TIMESTAMP",
+      "DECIMAL", "NUMERIC", "BLOB", "CLOB"
+    ]);
+    const lastTypeIdx = parts.findIndex((p) =>
+      knownDataTypes.has(p.toUpperCase().replace(/\(.*?\)/, ""))
+    );
+    if (lastTypeIdx > 1) {
+      const spaceColName = parts.slice(0, lastTypeIdx).join(" ").replace(/^["`']|["`']$/g, "");
+      const suggestion = suggestValidSqlIdentifier(spaceColName, "column");
+      throw new Error(
+        `Spaces are not allowed in SQL column names (found in "${spaceColName}"). Use underscores (_) instead (e.g. "${suggestion}").`
+      );
+    }
+
     // Standard column definition: name TYPE [PRIMARY KEY] [REFERENCES other(col)]
     const colMatch = trimmed.match(
-      /^([\w]+)\s+([\w()]+)(?:\s+primary\s+key)?(?:\s+references\s+([\w]+)\(([\w]+)\))?/i,
+      /^([^\s]+)\s+([\w()]+)(?:\s+primary\s+key)?(?:\s+references\s+([^\s()]+)\(([^\s()]+)\))?\s*$/i,
     );
     if (!colMatch) {
       throw new Error(`Unsupported column definition: "${trimmed}".`);
     }
 
-    const name = colMatch[1].toLowerCase();
+    const rawColName = colMatch[1].replace(/^["`']|["`']$/g, "");
+    const colVal = validateSqlIdentifier(rawColName, "column", {
+      existingNames: columns.map((c) => c.name),
+    });
+    if (!colVal.isValid) {
+      throw new Error(`In column "${rawColName}": ${colVal.error}`);
+    }
+
+    const name = rawColName.toLowerCase();
     const type = normalizeType(colMatch[2]);
     const isInlinePk = /primary\s+key/i.test(trimmed);
     const fk =
@@ -1122,41 +1204,116 @@ function parseCreateTable(q: string): ParsedCreateTableQuery {
   };
 }
 
-function parseDropTable(q: string): ParsedDropTableQuery {
-  const match = q.match(/^drop\s+table\s+(if\s+exists\s+)?([\w]+)$/i);
+function parseCreateDatabase(q: string): ParsedCreateDatabaseQuery {
+  const match = q.match(/^create\s+(?:database|schema)(?:\s+(if\s+not\s+exists))?\s+([^;]+)$/i);
   if (!match) {
+    throw new Error("Invalid CREATE DATABASE syntax. Expected: CREATE DATABASE db_name;");
+  }
+  const rawDb = match[2].trim().replace(/^["`']|["`']$/g, "");
+  const val = validateSqlIdentifier(rawDb, "database");
+  if (!val.isValid) {
+    throw new Error(val.error);
+  }
+  return {
+    type: "CREATE DATABASE",
+    ifNotExists: Boolean(match[1]),
+    database: rawDb.toLowerCase(),
+  };
+}
+
+function parseDropDatabase(q: string): ParsedDropDatabaseQuery {
+  const match = q.match(/^drop\s+(?:database|schema)(?:\s+(if\s+exists))?\s+([^;]+)$/i);
+  if (!match) {
+    throw new Error("Invalid DROP DATABASE syntax. Expected: DROP DATABASE db_name;");
+  }
+  const rawDb = match[2].trim().replace(/^["`']|["`']$/g, "");
+  const val = validateSqlIdentifier(rawDb, "database");
+  if (!val.isValid) {
+    throw new Error(val.error);
+  }
+  return {
+    type: "DROP DATABASE",
+    ifExists: Boolean(match[1]),
+    database: rawDb.toLowerCase(),
+  };
+}
+
+function parseDropTable(q: string): ParsedDropTableQuery {
+  const match = q.match(/^drop\s+table\s+(if\s+exists\s+)?([^\s;]+)$/i);
+  if (!match) {
+    const spaceMatch = q.match(/^drop\s+table\s+(if\s+exists\s+)?(.+)$/i);
+    if (spaceMatch) {
+      const rawTable = spaceMatch[2].trim().replace(/;+$/, "");
+      const val = validateSqlIdentifier(rawTable, "table");
+      if (!val.isValid) throw new Error(val.error);
+    }
     throw new Error("Invalid DROP TABLE syntax. Expected: DROP TABLE table_name;");
+  }
+  const rawTable = match[2].replace(/^["`']|["`']$/g, "");
+  const val = validateSqlIdentifier(rawTable, "table");
+  if (!val.isValid) {
+    throw new Error(val.error);
   }
   return {
     type: "DROP TABLE",
     ifExists: Boolean(match[1]),
-    table: match[2].toLowerCase(),
+    table: rawTable.toLowerCase(),
   };
 }
 
 function parseAlterTable(q: string, schema: Table[]): ParsedAlterTableQuery {
-  const match = q.match(/^alter\s+table\s+([\w]+)\s+(.+)$/i);
+  const match = q.match(/^alter\s+table\s+([^\s]+)\s+(.+)$/i);
   if (!match) {
     throw new Error(
       "Invalid ALTER TABLE syntax. Expected: ALTER TABLE table_name ADD/DROP/RENAME ...;",
     );
   }
 
-  const tableName = match[1].toLowerCase();
+  const rawTable = match[1].replace(/^["`']|["`']$/g, "");
+  const tableVal = validateSqlIdentifier(rawTable, "table");
+  if (!tableVal.isValid) {
+    throw new Error(tableVal.error);
+  }
+  const tableName = rawTable.toLowerCase();
   const actionStr = match[2].trim();
+
+  if (/^add(?:\s+column)?\s+/i.test(actionStr)) {
+    const rest = actionStr.replace(/^add(?:\s+column)?\s+/i, "").trim();
+    const parts = rest.split(/\s+/);
+    const knownDataTypes = new Set([
+      "INTEGER", "INT", "SMALLINT", "BIGINT", "TEXT", "VARCHAR", "CHAR",
+      "REAL", "FLOAT", "DOUBLE", "BOOLEAN", "DATE", "TIME", "TIMESTAMP",
+      "DECIMAL", "NUMERIC", "BLOB", "CLOB"
+    ]);
+    const typeIdx = parts.findIndex((p) =>
+      knownDataTypes.has(p.toUpperCase().replace(/\(.*?\)/, ""))
+    );
+    if (typeIdx > 1) {
+      const spaceColName = parts.slice(0, typeIdx).join(" ").replace(/^["`']|["`']$/g, "");
+      const suggestion = suggestValidSqlIdentifier(spaceColName, "column");
+      throw new Error(
+        `Spaces are not allowed in SQL column names (found in "${spaceColName}"). Use underscores (_) instead (e.g. "${suggestion}").`
+      );
+    }
+  }
 
   // ADD COLUMN
   const addMatch = actionStr.match(
-    /^add(?:\s+column)?\s+([\w]+)\s+([\w()]+)(?:\s+primary\s+key)?/i,
+    /^add(?:\s+column)?\s+([^\s]+)\s+([\w()]+)(?:\s+primary\s+key)?\s*$/i,
   );
   if (addMatch) {
+    const rawCol = addMatch[1].replace(/^["`']|["`']$/g, "");
+    const colVal = validateSqlIdentifier(rawCol, "column");
+    if (!colVal.isValid) {
+      throw new Error(colVal.error);
+    }
     return {
       type: "ALTER TABLE",
       table: tableName,
       action: {
         type: "ADD_COLUMN",
         column: {
-          name: addMatch[1].toLowerCase(),
+          name: rawCol.toLowerCase(),
           type: normalizeType(addMatch[2]),
           pk: /primary\s+key/i.test(actionStr),
         },
@@ -1165,45 +1322,78 @@ function parseAlterTable(q: string, schema: Table[]): ParsedAlterTableQuery {
   }
 
   // DROP COLUMN
-  const dropMatch = actionStr.match(/^drop(?:\s+column)?\s+([\w]+)$/i);
+  const dropMatch = actionStr.match(/^drop(?:\s+column)?\s+([^\s;]+)$/i);
   if (dropMatch) {
+    const rawCol = dropMatch[1].replace(/^["`']|["`']$/g, "");
+    const colVal = validateSqlIdentifier(rawCol, "column");
+    if (!colVal.isValid) {
+      throw new Error(colVal.error);
+    }
     return {
       type: "ALTER TABLE",
       table: tableName,
       action: {
         type: "DROP_COLUMN",
-        columnName: dropMatch[1].toLowerCase(),
+        columnName: rawCol.toLowerCase(),
       },
     };
   }
 
   // RENAME TO new_table
-  const renameTableMatch = actionStr.match(/^rename\s+to\s+([\w]+)$/i);
+  const renameTableMatch = actionStr.match(/^rename\s+to\s+([^\s;]+)$/i);
   if (renameTableMatch) {
+    const rawNewTable = renameTableMatch[1].replace(/^["`']|["`']$/g, "");
+    const val = validateSqlIdentifier(rawNewTable, "table");
+    if (!val.isValid) {
+      throw new Error(val.error);
+    }
     return {
       type: "ALTER TABLE",
       table: tableName,
       action: {
         type: "RENAME_TABLE",
-        newTableName: renameTableMatch[1].toLowerCase(),
+        newTableName: rawNewTable.toLowerCase(),
       },
     };
+  }
+  if (/^rename\s+to\s+/i.test(actionStr)) {
+    const rawNewTable = actionStr.replace(/^rename\s+to\s+/i, "").trim().replace(/;+$/, "");
+    const val = validateSqlIdentifier(rawNewTable, "table");
+    if (!val.isValid) {
+      throw new Error(val.error);
+    }
   }
 
   // RENAME COLUMN old TO new
   const renameColMatch = actionStr.match(
-    /^rename(?:\s+column)?\s+([\w]+)\s+to\s+([\w]+)$/i,
+    /^rename(?:\s+column)?\s+([^\s]+)\s+to\s+([^\s;]+)$/i,
   );
   if (renameColMatch) {
+    const rawOldCol = renameColMatch[1].replace(/^["`']|["`']$/g, "");
+    const rawNewCol = renameColMatch[2].replace(/^["`']|["`']$/g, "");
+    const oldVal = validateSqlIdentifier(rawOldCol, "column");
+    if (!oldVal.isValid) {
+      throw new Error(oldVal.error);
+    }
+    const newVal = validateSqlIdentifier(rawNewCol, "column");
+    if (!newVal.isValid) {
+      throw new Error(newVal.error);
+    }
     return {
       type: "ALTER TABLE",
       table: tableName,
       action: {
         type: "RENAME_COLUMN",
-        oldColumnName: renameColMatch[1].toLowerCase(),
-        newColumnName: renameColMatch[2].toLowerCase(),
+        oldColumnName: rawOldCol.toLowerCase(),
+        newColumnName: rawNewCol.toLowerCase(),
       },
     };
+  }
+
+  if (/^rename(?:\s+column)?\s+/i.test(actionStr)) {
+    throw new Error(
+      "Invalid RENAME COLUMN syntax. Expected: ALTER TABLE table_name RENAME COLUMN old_name TO new_name; (Ensure no spaces in column names)",
+    );
   }
 
   throw new Error(
@@ -1212,15 +1402,24 @@ function parseAlterTable(q: string, schema: Table[]): ParsedAlterTableQuery {
 }
 
 function parseTruncate(q: string, schema: Table[]): ParsedTruncateQuery {
-  const match = q.match(/^truncate(?:\s+table)?\s+([\w]+)$/i);
+  const match = q.match(/^truncate(?:\s+table)?\s+([^\s;]+)$/i);
   if (!match) {
+    const spaceMatch = q.match(/^truncate(?:\s+table)?\s+(.+)$/i);
+    if (spaceMatch) {
+      const rawTable = spaceMatch[1].trim().replace(/;+$/, "");
+      const val = validateSqlIdentifier(rawTable, "table");
+      if (!val.isValid) throw new Error(val.error);
+    }
     throw new Error(
       "Invalid TRUNCATE syntax. Expected: TRUNCATE [TABLE] table_name;",
     );
   }
+  const rawTable = match[1].replace(/^["`']|["`']$/g, "");
+  const val = validateSqlIdentifier(rawTable, "table");
+  if (!val.isValid) throw new Error(val.error);
   return {
     type: "TRUNCATE",
-    table: match[1].toLowerCase(),
+    table: rawTable.toLowerCase(),
   };
 }
 
@@ -1302,8 +1501,12 @@ export function executeParsed(
       return executeDelete(p, schema);
     case "CREATE TABLE":
       return executeCreateTable(p, schema);
+    case "CREATE DATABASE":
+      return executeCreateDatabase(p, schema);
     case "DROP TABLE":
       return executeDropTable(p, schema);
+    case "DROP DATABASE":
+      return executeDropDatabase(p, schema);
     case "ALTER TABLE":
       return executeAlterTable(p, schema);
     case "TRUNCATE":
@@ -2033,6 +2236,76 @@ function executeCreateTable(
     finalRows: [],
     columns: p.columns.map((c) => c.name),
     updatedSchema,
+  };
+}
+
+/** Execute CREATE DATABASE query */
+function executeCreateDatabase(
+  p: ParsedCreateDatabaseQuery,
+  schema: Table[],
+): QueryResult {
+  const steps: PipelineStep[] = [
+    {
+      stage: "PARSER",
+      title: `Parse CREATE DATABASE (${p.database})`,
+      detail: `Validated database identifier \`${p.database}\` as per SQL Norms (unbroken identifier, no spaces, legal characters, unreserved keyword).`,
+      rowCount: 1,
+      rows: [{ database_name: p.database }],
+      columns: ["database_name"],
+    },
+    {
+      stage: "CATALOG",
+      title: "Data Dictionary Allocation",
+      detail: `Allocated catalog metadata headers and relation dictionary for database \`${p.database}\`.`,
+      rowCount: 0,
+      rows: [],
+      columns: [],
+    },
+    {
+      stage: "COMMIT",
+      title: `Database ${p.database} Initialized`,
+      detail: `Created empty database relation space for \`${p.database}\`. Ready for CREATE TABLE DDL.`,
+      rowCount: 0,
+      rows: [],
+      columns: [],
+    },
+  ];
+
+  return {
+    statementType: "DDL",
+    command: "CREATE DATABASE",
+    message: `Database "${p.database}" created successfully per SQL Norms.`,
+    affectedRows: 1,
+    steps,
+    finalRows: [],
+    columns: ["database_name"],
+    updatedSchema: schema,
+  };
+}
+
+/** Execute DROP DATABASE query */
+function executeDropDatabase(
+  p: ParsedDropDatabaseQuery,
+  schema: Table[],
+): QueryResult {
+  return {
+    statementType: "DDL",
+    command: "DROP DATABASE",
+    message: `Database "${p.database}" dropped successfully.`,
+    affectedRows: 0,
+    steps: [
+      {
+        stage: "CATALOG",
+        title: `Drop Database (${p.database})`,
+        detail: `Deallocated database dictionary pages and dropped all tables for \`${p.database}\`.`,
+        rowCount: 0,
+        rows: [],
+        columns: [],
+      },
+    ],
+    finalRows: [],
+    columns: [],
+    updatedSchema: [],
   };
 }
 

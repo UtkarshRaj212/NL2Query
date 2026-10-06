@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useMemo, useCallback } from "react";
-import { Renderer, Triangle, Program, Mesh, Color } from "ogl";
+// @ts-expect-error ogl module resolution in Next.js Turbopack
+import { Renderer, Triangle, Program, Mesh, Color } from "ogl/src/index.js";
 
 const VERTEX_SHADER = `
 attribute vec2 position;

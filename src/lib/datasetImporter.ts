@@ -1,5 +1,6 @@
 import type { Column, ColumnType, Dataset, DatasetExample, Table } from "./schema";
 import { executeSQL } from "./sqlEngine";
+import { suggestValidSqlIdentifier } from "./sqlNamingRules";
 import * as XLSX from "xlsx";
 
 export interface ImportStats {
@@ -52,19 +53,11 @@ export function isWasteValue(val: unknown): boolean {
 }
 
 /**
- * Sanitizes an identifier (e.g. table name or column name) to be safe for SQL.
+ * Sanitizes an identifier (e.g. table name or column name) to strictly conform to SQL Norms.
  */
 export function sanitizeIdentifier(name: string, fallback = "item"): string {
-  let cleaned = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^\w]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-  if (!cleaned) cleaned = fallback;
-  if (/^\d/.test(cleaned)) cleaned = `col_${cleaned}`;
-  return cleaned;
+  const type = fallback.startsWith("col") ? "column" : "table";
+  return suggestValidSqlIdentifier(name || fallback, type);
 }
 
 /**

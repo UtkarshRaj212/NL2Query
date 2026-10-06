@@ -685,6 +685,8 @@ export default function PlSqlPage() {
           datasets={allDatasets}
           selectedDatasetId={selectedDatasetId}
           onSelectDataset={changeDataset}
+          onCreateDataset={handleSaveDataset}
+          onDeleteDataset={handleDeleteDataset}
           mode="plsql"
           onExit={() => setIsTerminalMode(false)}
           onReset={() => setActiveSchema(getDefaultSchema(selectedDataset.id, allDatasets))}

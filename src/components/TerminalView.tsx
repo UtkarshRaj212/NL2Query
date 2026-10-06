@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { Table, Column, Dataset } from "@/lib/schema";
 import { executeSQL, type QueryResult, type Row } from "@/lib/sqlEngine";
 import { executePLSQL, type PLSQLResult } from "@/lib/plsqlEngine";
+import { validateSqlIdentifier } from "@/lib/sqlNamingRules";
 
 interface TerminalViewProps {
   activeSchema: Table[];
@@ -12,6 +13,8 @@ interface TerminalViewProps {
   datasets?: Dataset[];
   selectedDatasetId?: string;
   onSelectDataset?: (id: string) => void;
+  onCreateDataset?: (dataset: Dataset) => void;
+  onDeleteDataset?: (id: string) => void;
   mode: "sql" | "plsql";
   onExit: () => void;
   onReset?: () => void;
@@ -100,6 +103,8 @@ export function TerminalView({
   datasets = [],
   selectedDatasetId,
   onSelectDataset,
+  onCreateDataset,
+  onDeleteDataset,
   mode,
   onExit,
   onReset,
@@ -312,6 +317,164 @@ export function TerminalView({
               ...ascii,
               `${availableDatasets.length} database(s) in workspace. Type 'USE <database_id | name>;' to switch database.`,
             ],
+          },
+        ]);
+        return;
+      }
+
+      // CREATE DATABASE / SCHEMA
+      if (upper.startsWith("CREATE DATABASE ") || upper.startsWith("CREATE SCHEMA ")) {
+        const rawTarget = trimmed
+          .replace(/^CREATE\s+(?:DATABASE|SCHEMA)\s+(?:IF\s+NOT\s+EXISTS\s+)?/i, "")
+          .replace(/;+$/, "")
+          .trim()
+          .replace(/^["`']|["`']$/g, "");
+
+        const ifNotExists = /IF\s+NOT\s+EXISTS/i.test(trimmed);
+        const val = validateSqlIdentifier(rawTarget, "database");
+
+        if (!val.isValid) {
+          setHistory((prev) => [
+            ...prev,
+            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
+            {
+              id: String(Date.now() + 1),
+              type: "error",
+              lines: [`ERROR 1064 (42000): ${val.error}`],
+            },
+          ]);
+          return;
+        }
+
+        const targetDbName = rawTarget.toLowerCase();
+        const existing = datasets.find(
+          (d) => d.id.toLowerCase() === targetDbName || d.name.toLowerCase() === targetDbName
+        );
+
+        if (existing) {
+          if (ifNotExists) {
+            setHistory((prev) => [
+              ...prev,
+              { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
+              {
+                id: String(Date.now() + 1),
+                type: "info",
+                lines: [
+                  `Query OK, 0 rows affected, 1 warning (0.00 sec)`,
+                  `Note 1007: Can't create database '${targetDbName}'; database exists (IF NOT EXISTS skipped)`,
+                ],
+              },
+            ]);
+            return;
+          }
+          setHistory((prev) => [
+            ...prev,
+            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
+            {
+              id: String(Date.now() + 1),
+              type: "error",
+              lines: [`ERROR 1007 (HY000): Can't create database '${targetDbName}'; database exists.`],
+            },
+          ]);
+          return;
+        }
+
+        const newDb: Dataset = {
+          id: targetDbName,
+          name: targetDbName,
+          description: `Database ${targetDbName} created via CLI terminal session`,
+          schema: [],
+          defaultQuery: `SELECT 1;`,
+          examples: [],
+          isCustom: true,
+          createdAt: Date.now(),
+        };
+
+        if (onCreateDataset) {
+          onCreateDataset(newDb);
+        }
+        if (onSelectDataset) {
+          onSelectDataset(newDb.id);
+        }
+
+        setHistory((prev) => [
+          ...prev,
+          { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
+          {
+            id: String(Date.now() + 1),
+            type: "success",
+            lines: [
+              `Query OK, 1 row affected (0.01 sec)`,
+              `Database '${targetDbName}' created and activated as active workspace catalog per SQL Norms.`,
+            ],
+          },
+        ]);
+        return;
+      }
+
+      // DROP DATABASE / SCHEMA
+      if (upper.startsWith("DROP DATABASE ") || upper.startsWith("DROP SCHEMA ")) {
+        const rawTarget = trimmed
+          .replace(/^DROP\s+(?:DATABASE|SCHEMA)\s+(?:IF\s+EXISTS\s+)?/i, "")
+          .replace(/;+$/, "")
+          .trim()
+          .replace(/^["`']|["`']$/g, "");
+
+        const ifExists = /IF\s+EXISTS/i.test(trimmed);
+        const val = validateSqlIdentifier(rawTarget, "database");
+        if (!val.isValid) {
+          setHistory((prev) => [
+            ...prev,
+            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
+            { id: String(Date.now() + 1), type: "error", lines: [`ERROR 1064 (42000): ${val.error}`] },
+          ]);
+          return;
+        }
+
+        const targetDbName = rawTarget.toLowerCase();
+        const existing = datasets.find(
+          (d) => d.id.toLowerCase() === targetDbName || d.name.toLowerCase() === targetDbName
+        );
+
+        if (!existing) {
+          if (ifExists) {
+            setHistory((prev) => [
+              ...prev,
+              { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
+              {
+                id: String(Date.now() + 1),
+                type: "info",
+                lines: [
+                  `Query OK, 0 rows affected, 1 warning (0.00 sec)`,
+                  `Note 1008: Can't drop database '${targetDbName}'; database doesn't exist`,
+                ],
+              },
+            ]);
+            return;
+          }
+          setHistory((prev) => [
+            ...prev,
+            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
+            {
+              id: String(Date.now() + 1),
+              type: "error",
+              lines: [`ERROR 1008 (HY000): Can't drop database '${targetDbName}'; database doesn't exist.`],
+            },
+          ]);
+          return;
+        }
+
+        if (onDeleteDataset) {
+          onDeleteDataset(existing.id);
+        }
+
+        setHistory((prev) => [
+          ...prev,
+          { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
+          {
+            id: String(Date.now() + 1),
+            type: "success",
+            lines: [`Query OK, 0 rows affected (0.01 sec)`, `Database '${targetDbName}' dropped successfully.`],
           },
         ]);
         return;

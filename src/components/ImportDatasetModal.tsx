@@ -1,8 +1,12 @@
 "use client";
 
-import { useRef, useState, type DragEvent, type ChangeEvent } from "react";
+import { useRef, useState, useMemo, type DragEvent, type ChangeEvent } from "react";
 import type { Dataset, Table } from "@/lib/schema";
 import { parseImportedFiles, type ImportStats } from "@/lib/datasetImporter";
+import {
+  validateSqlIdentifier,
+  suggestValidSqlIdentifier,
+} from "@/lib/sqlNamingRules";
 
 interface ImportDatasetModalProps {
   isOpen: boolean;
@@ -102,11 +106,39 @@ export function ImportDatasetModal({
     }
   };
 
+  const dbNameValidation = useMemo(() => {
+    if (!datasetName.trim()) return null;
+    return validateSqlIdentifier(datasetName, "database");
+  }, [datasetName]);
+
   const handleConfirmImport = () => {
     if (!parsedDataset) return;
+    const finalName = (datasetName.trim() || parsedDataset.name).replace(/\s+/g, "_");
+    const val = validateSqlIdentifier(finalName, "database");
+    if (!val.isValid) {
+      setError(`Database Name Error: ${val.error}`);
+      return;
+    }
+
+    // Validate imported schema tables and columns
+    for (const t of parsedDataset.schema) {
+      const tVal = validateSqlIdentifier(t.name, "table");
+      if (!tVal.isValid) {
+        setError(`Table "${t.name}" error: ${tVal.error}`);
+        return;
+      }
+      for (const c of t.columns) {
+        const cVal = validateSqlIdentifier(c.name, "column");
+        if (!cVal.isValid) {
+          setError(`Table "${t.name}", column "${c.name}" error: ${cVal.error}`);
+          return;
+        }
+      }
+    }
+
     const finalDataset: Dataset = {
       ...parsedDataset,
-      name: datasetName.trim() || parsedDataset.name,
+      name: finalName,
       description: description.trim() || parsedDataset.description,
     };
     onImportDataset(finalDataset);
@@ -364,20 +396,34 @@ export function ImportDatasetModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: "var(--foreground)" }}>
-                    Dataset Name
+                    Database / Dataset Name *
                   </label>
                   <input
                     type="text"
                     value={datasetName}
-                    onChange={(e) => setDatasetName(e.target.value)}
-                    placeholder="e.g. Sales Records"
-                    className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none focus:ring-1 transition-all"
+                    onChange={(e) => setDatasetName(e.target.value.replace(/\s+/g, "_"))}
+                    placeholder="e.g. sales_records_db"
+                    className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none focus:ring-1 transition-all font-mono"
                     style={{
                       background: "var(--surface-subtle)",
-                      borderColor: "var(--border)",
+                      borderColor: dbNameValidation && !dbNameValidation.isValid ? "#f43f5e" : "var(--border)",
                       color: "var(--foreground)",
                     }}
                   />
+                  {dbNameValidation && !dbNameValidation.isValid && (
+                    <div className="mt-1 flex items-center justify-between text-[11px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      <span>⚠️ {dbNameValidation.error}</span>
+                      {dbNameValidation.suggestion && (
+                        <button
+                          type="button"
+                          onClick={() => setDatasetName(dbNameValidation.suggestion!)}
+                          className="ml-2 font-mono underline hover:text-amber-400 cursor-pointer"
+                        >
+                          Fix: {dbNameValidation.suggestion}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: "var(--foreground)" }}>

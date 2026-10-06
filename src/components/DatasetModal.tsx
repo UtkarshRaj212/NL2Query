@@ -11,6 +11,11 @@ import {
 } from "@/lib/schema";
 import { executeSQL } from "@/lib/sqlEngine";
 import { generateDatasetSQL } from "@/lib/exportUtils";
+import {
+  validateSqlIdentifier,
+  suggestValidSqlIdentifier,
+  isValidSqlIdentifier,
+} from "@/lib/sqlNamingRules";
 
 interface DatasetModalProps {
   isOpen: boolean;
@@ -85,9 +90,34 @@ export function DatasetModal({
     },
   ]);
   const [newTableName, setNewTableName] = useState("");
+  const [editingTableIdx, setEditingTableIdx] = useState<number | null>(null);
+  const [editingTableName, setEditingTableName] = useState("");
 
   // SQL Script state
   const [sqlScript, setSqlScript] = useState(DEFAULT_SQL_TEMPLATE);
+
+  // Live validation for Database Name
+  const dbNameValidation = useMemo(() => {
+    if (!name.trim()) return null;
+    return validateSqlIdentifier(name, "database");
+  }, [name]);
+
+  // Live validation for New Table Name
+  const newTableValidation = useMemo(() => {
+    if (!newTableName.trim()) return null;
+    return validateSqlIdentifier(newTableName, "table", {
+      existingNames: tables.map((t) => t.name),
+    });
+  }, [newTableName, tables]);
+
+  // Live validation for Table being renamed
+  const renameTableValidation = useMemo(() => {
+    if (editingTableIdx === null || !editingTableName.trim()) return null;
+    return validateSqlIdentifier(editingTableName, "table", {
+      existingNames: tables.map((t) => t.name),
+      currentName: tables[editingTableIdx]?.name,
+    });
+  }, [editingTableIdx, editingTableName, tables]);
 
   // Reset or pre-fill form when modal opens
   useEffect(() => {
@@ -125,25 +155,69 @@ export function DatasetModal({
 
   // Handle Table Add in Visual Mode
   const handleAddTable = () => {
-    const trimmed = newTableName.trim().toLowerCase();
-    if (!trimmed) {
+    const raw = newTableName.trim();
+    if (!raw) {
       setError("Table name cannot be empty.");
       return;
     }
-    if (tables.some((t) => t.name.toLowerCase() === trimmed)) {
-      setError(`Table "${trimmed}" already exists.`);
+    const val = validateSqlIdentifier(raw, "table", {
+      existingNames: tables.map((t) => t.name),
+    });
+    if (!val.isValid) {
+      setError(val.error || "Invalid table name.");
       return;
     }
+    const clean = raw.toLowerCase();
     setTables((prev) => [
       ...prev,
       {
-        name: trimmed,
+        name: clean,
         columns: [{ name: "id", type: "INTEGER", pk: true }],
         rows: [],
       },
     ]);
     setNewTableName("");
     setError(null);
+  };
+
+  const handleStartRenameTable = (idx: number) => {
+    setEditingTableIdx(idx);
+    setEditingTableName(tables[idx].name);
+    setError(null);
+  };
+
+  const handleConfirmRenameTable = (idx: number) => {
+    const oldName = tables[idx].name;
+    const raw = editingTableName.trim();
+    const val = validateSqlIdentifier(raw, "table", {
+      existingNames: tables.map((t) => t.name),
+      currentName: oldName,
+    });
+    if (!val.isValid) {
+      setError(val.error || "Invalid table name.");
+      return;
+    }
+    const newName = raw.toLowerCase();
+    setTables((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], name: newName };
+      for (const t of next) {
+        for (const c of t.columns) {
+          if (c.fk && c.fk.table.toLowerCase() === oldName.toLowerCase()) {
+            c.fk.table = newName;
+          }
+        }
+      }
+      return next;
+    });
+    setEditingTableIdx(null);
+    setEditingTableName("");
+    setError(null);
+  };
+
+  const handleCancelRenameTable = () => {
+    setEditingTableIdx(null);
+    setEditingTableName("");
   };
 
   const handleRemoveTable = (tableIndex: number) => {
@@ -173,6 +247,10 @@ export function DatasetModal({
       const updated = [...prev];
       const table = { ...updated[tableIndex] };
       const columns = [...table.columns];
+      if (updates.name !== undefined) {
+        // Enforce SQL Norms: automatically eliminate whitespace
+        updates.name = updates.name.replace(/\s+/g, "_");
+      }
       columns[columnIndex] = { ...columns[columnIndex], ...updates };
       table.columns = columns;
       updated[tableIndex] = table;
@@ -198,7 +276,13 @@ export function DatasetModal({
   // Handle submission
   const handleSave = () => {
     setError(null);
-    const datasetName = name.trim() || (datasetToEdit ? datasetToEdit.name : "Custom Dataset");
+    const rawDbName = name.trim() || (datasetToEdit ? datasetToEdit.name : "custom_db");
+    const dbVal = validateSqlIdentifier(rawDbName, "database");
+    if (!dbVal.isValid) {
+      setError(`Database Name Error: ${dbVal.error}`);
+      return;
+    }
+    const datasetName = rawDbName;
     const datasetId = datasetToEdit?.id || `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
     if (mode === "visual") {
@@ -206,14 +290,26 @@ export function DatasetModal({
         setError("Please add at least one table to your dataset.");
         return;
       }
-      for (const t of tables) {
-        if (!t.name.trim()) {
-          setError("All tables must have a valid name.");
+      for (let i = 0; i < tables.length; i++) {
+        const t = tables[i];
+        const otherTableNames = tables.filter((_, idx) => idx !== i).map((x) => x.name);
+        const tVal = validateSqlIdentifier(t.name, "table", { existingNames: otherTableNames });
+        if (!tVal.isValid) {
+          setError(`Table "${t.name}" error: ${tVal.error}`);
           return;
         }
         if (!t.columns || t.columns.length === 0) {
           setError(`Table "${t.name}" must have at least one column.`);
           return;
+        }
+        for (let j = 0; j < t.columns.length; j++) {
+          const c = t.columns[j];
+          const otherColNames = t.columns.filter((_, idx) => idx !== j).map((x) => x.name);
+          const cVal = validateSqlIdentifier(c.name, "column", { existingNames: otherColNames });
+          if (!cVal.isValid) {
+            setError(`Table "${t.name}", column "${c.name}" error: ${cVal.error}`);
+            return;
+          }
         }
       }
 
@@ -350,20 +446,34 @@ export function DatasetModal({
                 className="block text-xs font-semibold uppercase tracking-wider mb-1"
                 style={{ color: "var(--muted)" }}
               >
-                Dataset Name *
+                Database / Dataset Name *
               </label>
               <input
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Bookstore, Healthcare DB"
-                className="w-full p-2 text-sm rounded-lg border focus:outline-none"
+                onChange={(e) => setName(e.target.value.replace(/\s+/g, "_"))}
+                placeholder="e.g. bookstore_db, healthcare_catalog"
+                className="w-full p-2 text-sm rounded-lg border focus:outline-none font-mono"
                 style={{
                   background: "var(--surface-subtle)",
-                  borderColor: "var(--border)",
+                  borderColor: dbNameValidation && !dbNameValidation.isValid ? "#f43f5e" : "var(--border)",
                   color: "var(--foreground)",
                 }}
               />
+              {dbNameValidation && !dbNameValidation.isValid && (
+                <div className="mt-1 flex items-center justify-between text-[11px] text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                  <span>⚠️ {dbNameValidation.error}</span>
+                  {dbNameValidation.suggestion && (
+                    <button
+                      type="button"
+                      onClick={() => setName(dbNameValidation.suggestion!)}
+                      className="ml-2 font-mono underline hover:text-amber-400 cursor-pointer"
+                    >
+                      Fix: {dbNameValidation.suggestion}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label
@@ -420,32 +530,48 @@ export function DatasetModal({
           {mode === "visual" && (
             <div className="space-y-4">
               {/* Add Table input */}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newTableName}
-                  onChange={(e) => setNewTableName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddTable()}
-                  placeholder="New table name (e.g. orders, patients)"
-                  className="flex-1 p-2 text-sm rounded-lg border focus:outline-none"
-                  style={{
-                    background: "var(--surface-subtle)",
-                    borderColor: "var(--border)",
-                    color: "var(--foreground)",
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleAddTable}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-xs border"
-                  style={{
-                    background: "var(--accent-gradient, var(--accent))",
-                    color: "var(--accent-foreground)",
-                    borderColor: "var(--accent)",
-                  }}
-                >
-                  + Add Table
-                </button>
+              <div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newTableName}
+                    onChange={(e) => setNewTableName(e.target.value.replace(/\s+/g, "_"))}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddTable()}
+                    placeholder="New table name (e.g. orders, patients)"
+                    className="flex-1 p-2 text-sm rounded-lg border focus:outline-none font-mono"
+                    style={{
+                      background: "var(--surface-subtle)",
+                      borderColor: newTableValidation && !newTableValidation.isValid ? "#f43f5e" : "var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTable}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-xs border"
+                    style={{
+                      background: "var(--accent-gradient, var(--accent))",
+                      color: "var(--accent-foreground)",
+                      borderColor: "var(--accent)",
+                    }}
+                  >
+                    + Add Table
+                  </button>
+                </div>
+                {newTableValidation && !newTableValidation.isValid && (
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                    <span>⚠️ {newTableValidation.error}</span>
+                    {newTableValidation.suggestion && (
+                      <button
+                        type="button"
+                        onClick={() => setNewTableName(newTableValidation.suggestion!)}
+                        className="ml-2 font-mono underline hover:text-amber-400 cursor-pointer"
+                      >
+                        Fix: {newTableValidation.suggestion}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Tables List */}
@@ -461,12 +587,63 @@ export function DatasetModal({
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span
-                          className="font-mono font-bold text-sm"
-                          style={{ color: "var(--foreground)" }}
-                        >
-                          {table.name}
-                        </span>
+                        {editingTableIdx === tIdx ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={editingTableName}
+                              onChange={(e) => setEditingTableName(e.target.value.replace(/\s+/g, "_"))}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleConfirmRenameTable(tIdx);
+                                if (e.key === "Escape") handleCancelRenameTable();
+                              }}
+                              className="px-2 py-0.5 text-xs font-mono font-bold rounded border focus:outline-none"
+                              style={{
+                                background: "var(--panel)",
+                                borderColor: renameTableValidation && !renameTableValidation.isValid ? "#f43f5e" : "var(--border)",
+                                color: "var(--foreground)",
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleConfirmRenameTable(tIdx)}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 cursor-pointer"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCancelRenameTable}
+                              className="text-[10px] px-1.5 py-0.5 rounded border hover:opacity-80 cursor-pointer"
+                              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <span
+                              className="font-mono font-bold text-sm"
+                              style={{ color: "var(--foreground)" }}
+                            >
+                              {table.name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleStartRenameTable(tIdx)}
+                              className="text-[10px] px-1.5 py-0.5 rounded border hover:opacity-90 opacity-70 cursor-pointer"
+                              style={{
+                                borderColor: "var(--border)",
+                                color: "var(--muted)",
+                                background: "var(--panel)",
+                              }}
+                              title="Rename table"
+                            >
+                              Rename
+                            </button>
+                          </>
+                        )}
                         <span className="text-[11px] opacity-60" style={{ color: "var(--muted)" }}>
                           ({table.columns.length} columns)
                         </span>
@@ -494,33 +671,44 @@ export function DatasetModal({
                       </div>
                     </div>
 
+                    {editingTableIdx === tIdx && renameTableValidation && !renameTableValidation.isValid && (
+                      <div className="text-[11px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                        ⚠️ {renameTableValidation.error}
+                      </div>
+                    )}
+
                     {/* Columns */}
                     <div className="space-y-1.5 pl-1">
-                      {table.columns.map((col, cIdx) => (
-                        <div
-                          key={cIdx}
-                          className="flex flex-wrap items-center gap-2 text-xs p-2 rounded border"
-                          style={{
-                            background: "var(--panel)",
-                            borderColor: "var(--border)",
-                          }}
-                        >
-                          <input
-                            type="text"
-                            value={col.name}
-                            onChange={(e) =>
-                              handleUpdateColumn(tIdx, cIdx, {
-                                name: e.target.value.toLowerCase(),
-                              })
-                            }
-                            placeholder="column_name"
-                            className="px-2 py-1 rounded border font-mono text-xs w-28 focus:outline-none"
-                            style={{
-                              background: "var(--surface-subtle)",
-                              borderColor: "var(--border)",
-                              color: "var(--foreground)",
-                            }}
-                          />
+                      {table.columns.map((col, cIdx) => {
+                        const colVal = validateSqlIdentifier(col.name, "column", {
+                          existingNames: table.columns.filter((_, i) => i !== cIdx).map((c) => c.name),
+                        });
+                        return (
+                          <div key={cIdx} className="space-y-1">
+                            <div
+                              className="flex flex-wrap items-center gap-2 text-xs p-2 rounded border"
+                              style={{
+                                background: "var(--panel)",
+                                borderColor: !colVal.isValid ? "#f43f5e" : "var(--border)",
+                              }}
+                            >
+                              <input
+                                type="text"
+                                value={col.name}
+                                onChange={(e) =>
+                                  handleUpdateColumn(tIdx, cIdx, {
+                                    name: e.target.value.toLowerCase().replace(/\s+/g, "_"),
+                                  })
+                                }
+                                placeholder="column_name"
+                                className="px-2 py-1 rounded border font-mono text-xs w-28 focus:outline-none"
+                                style={{
+                                  background: "var(--surface-subtle)",
+                                  borderColor: !colVal.isValid ? "#f43f5e" : "var(--border)",
+                                  color: "var(--foreground)",
+                                }}
+                                title={!colVal.isValid ? colVal.error : undefined}
+                              />
                           <select
                             value={col.type}
                             onChange={(e) =>
@@ -619,7 +807,14 @@ export function DatasetModal({
                             </button>
                           )}
                         </div>
-                      ))}
+                        {!colVal.isValid && (
+                          <div className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                            ⚠️ {colVal.error}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                     </div>
                   </div>
                 ))}

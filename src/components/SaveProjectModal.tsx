@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { validateSqlIdentifier } from "@/lib/sqlNamingRules";
 
 interface SaveProjectModalProps {
   isOpen: boolean;
@@ -18,9 +19,14 @@ export function SaveProjectModal({
   const [name, setName] = useState(initialName);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const validation = useMemo(() => {
+    if (!name.trim()) return null;
+    return validateSqlIdentifier(name, "database");
+  }, [name]);
+
   useEffect(() => {
     if (isOpen) {
-      setName(initialName || "Untitled Project");
+      setName(initialName || "untitled_project");
       setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
@@ -32,8 +38,10 @@ export function SaveProjectModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
-      onSave(name.trim());
+    const clean = name.trim().replace(/\s+/g, "_");
+    const val = validateSqlIdentifier(clean, "database");
+    if (clean && val.isValid) {
+      onSave(clean);
     }
   };
 
@@ -92,16 +100,30 @@ export function SaveProjectModal({
               ref={inputRef}
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Customers by City Analysis"
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
+              onChange={(e) => setName(e.target.value.replace(/\s+/g, "_"))}
+              placeholder="e.g. customers_city_analysis"
+              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none font-mono"
               style={{
                 background: "var(--surface-subtle)",
-                borderColor: "var(--border)",
+                borderColor: validation && !validation.isValid ? "#f43f5e" : "var(--border)",
                 color: "var(--foreground)",
               }}
               required
             />
+            {validation && !validation.isValid && (
+              <div className="mt-1.5 flex items-center justify-between text-[11px] text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                <span>⚠️ {validation.error}</span>
+                {validation.suggestion && (
+                  <button
+                    type="button"
+                    onClick={() => setName(validation.suggestion!)}
+                    className="ml-2 font-mono underline hover:text-amber-400 cursor-pointer"
+                  >
+                    Fix: {validation.suggestion}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

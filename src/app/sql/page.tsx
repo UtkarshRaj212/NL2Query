@@ -708,6 +708,8 @@ export default function Home() {
           datasets={allDatasets}
           selectedDatasetId={selectedDatasetId}
           onSelectDataset={changeDataset}
+          onCreateDataset={handleSaveDataset}
+          onDeleteDataset={handleDeleteDataset}
           mode="sql"
           onExit={() => setIsTerminalMode(false)}
           onReset={() => setActiveSchema(getDefaultSchema(selectedDataset.id, allDatasets))}
