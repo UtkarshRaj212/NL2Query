@@ -114,6 +114,19 @@ export interface InputPanelProps {
   onDeleteDataset?: (id: string) => void;
   onOpenGuide?: () => void;
   theme?: ThemeId;
+  diagnostic?: QueryDiagnostic | null;
+  onApplyDiagnosticSql?: (suggestedSql: string) => void;
+  onClearDiagnostic?: () => void;
+}
+
+export interface QueryDiagnostic {
+  isValid: boolean;
+  reason: string;
+  missingOrNeeded?: string;
+  suggestedTables?: string[];
+  suggestedColumns?: string[];
+  suggestedSql?: string;
+  availableTables?: string[];
 }
 
 export interface VisualizationPanelProps {

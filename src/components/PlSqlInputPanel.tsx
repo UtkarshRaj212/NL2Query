@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { Dataset, Table } from "@/lib/schema";
-import type { HistoryItem, ThemeId } from "./nlSqlTypes";
+import type { HistoryItem, ThemeId, QueryDiagnostic } from "./nlSqlTypes";
 import { DatasetDropdown } from "./DatasetDropdown";
 import { VoiceButton } from "./VoiceButton";
 import {
@@ -52,6 +52,9 @@ export interface PlSqlInputPanelProps {
   onDeleteDataset?: (id: string) => void;
   onOpenGuide?: () => void;
   theme?: ThemeId;
+  diagnostic?: QueryDiagnostic | null;
+  onApplyDiagnosticSql?: (suggestedSql: string) => void;
+  onClearDiagnostic?: () => void;
 }
 
 export function PlSqlInputPanel({
@@ -83,6 +86,10 @@ export function PlSqlInputPanel({
   onOpenImportModal,
   onEditDataset,
   onDeleteDataset,
+  onOpenGuide,
+  diagnostic,
+  onApplyDiagnosticSql,
+  onClearDiagnostic,
 }: PlSqlInputPanelProps) {
   const [autoExecute, setAutoExecute] = useState(true);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -418,6 +425,102 @@ export function PlSqlInputPanel({
               </p>
             </div>
           )}
+
+          {/* AI Query Diagnostician Card */}
+          {/* Basic & Clean Suggestion Card */}
+          {diagnostic && (
+            <div
+              className="mt-2.5 p-2.5 rounded-lg border text-xs space-y-2 transition-all shadow-xs"
+              style={{
+                background: "var(--surface-subtle)",
+                borderColor: "rgba(244, 63, 94, 0.4)",
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 font-semibold text-rose-400">
+                  <svg
+                    className="w-3.5 h-3.5 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span>Suggestion</span>
+                </div>
+                {onClearDiagnostic && (
+                  <button
+                    type="button"
+                    onClick={onClearDiagnostic}
+                    className="text-zinc-400 hover:text-zinc-200 text-xs px-1 cursor-pointer"
+                    title="Dismiss"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Basic suggestion text */}
+              <p className="text-zinc-300 text-xs leading-relaxed">
+                {diagnostic.reason}
+              </p>
+
+              {/* Clean table pills */}
+              {(() => {
+                const tablesToShow =
+                  diagnostic.availableTables && diagnostic.availableTables.length > 0
+                    ? diagnostic.availableTables
+                    : diagnostic.suggestedTables && diagnostic.suggestedTables.length > 0
+                      ? diagnostic.suggestedTables
+                      : activeSchema?.map((t) => t.name) || [];
+
+                if (!tablesToShow || tablesToShow.length === 0) return null;
+
+                return (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span className="text-[11px] text-zinc-400 font-medium">Available tables:</span>
+                    {tablesToShow.map((tbl) => (
+                      <button
+                        key={tbl}
+                        type="button"
+                        onClick={() => {
+                          const newPrompt = `Loop through table ${tbl} and display records`;
+                          onNlInputChange(newPrompt);
+                        }}
+                        className="px-2 py-0.5 text-[11px] font-mono rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 cursor-pointer transition-colors"
+                        title={`Use table "${tbl}"`}
+                      >
+                        {tbl}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* 1-click script fix */}
+              {diagnostic.suggestedSql && onApplyDiagnosticSql && (
+                <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-zinc-800">
+                  <code className="text-[11px] font-mono text-emerald-400 truncate max-w-[220px]">
+                    {diagnostic.suggestedSql.split("\n")[0]}...
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => onApplyDiagnosticSql(diagnostic.suggestedSql!)}
+                    className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-pointer whitespace-nowrap transition-colors"
+                    title="Run this working script"
+                  >
+                    Use Script
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 2. Or write PL/SQL directly */}
@@ -460,7 +563,7 @@ export function PlSqlInputPanel({
           >
             <span>Execute PL/SQL</span>
           </button>
-          {error && (
+          {error && !diagnostic && (
             <p role="alert" className="mt-2 text-xs text-red-500 font-mono">
               {error}
             </p>

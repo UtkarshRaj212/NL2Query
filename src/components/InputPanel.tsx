@@ -42,6 +42,9 @@ export function InputPanel({
   onEditDataset,
   onDeleteDataset,
   onOpenGuide,
+  diagnostic,
+  onApplyDiagnosticSql,
+  onClearDiagnostic,
 }: InputPanelProps) {
   const [autoExecute, setAutoExecute] = useState(true);
 
@@ -593,6 +596,104 @@ export function InputPanel({
               </p>
             </div>
           )}
+          {/* AI Query Diagnostician Card */}
+          {/* Basic & Clean Suggestion Card */}
+          {diagnostic && (
+            <div
+              className="mt-2.5 p-2.5 rounded-lg border text-xs space-y-2 transition-all shadow-xs"
+              style={{
+                background: "var(--surface-subtle)",
+                borderColor: "rgba(244, 63, 94, 0.4)",
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 font-semibold text-rose-400">
+                  <svg
+                    className="w-3.5 h-3.5 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span>Suggestion</span>
+                </div>
+                {onClearDiagnostic && (
+                  <button
+                    type="button"
+                    onClick={onClearDiagnostic}
+                    className="text-zinc-400 hover:text-zinc-200 text-xs px-1 cursor-pointer"
+                    title="Dismiss"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Basic suggestion text */}
+              <p className="text-zinc-300 text-xs leading-relaxed">
+                {diagnostic.reason}
+              </p>
+
+              {/* Clean table pills */}
+              {(() => {
+                const tablesToShow =
+                  diagnostic.availableTables && diagnostic.availableTables.length > 0
+                    ? diagnostic.availableTables
+                    : diagnostic.suggestedTables && diagnostic.suggestedTables.length > 0
+                      ? diagnostic.suggestedTables
+                      : activeSchema.map((t) => t.name);
+
+                if (!tablesToShow || tablesToShow.length === 0) return null;
+
+                return (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span className="text-[11px] text-zinc-400 font-medium">Available tables:</span>
+                    {tablesToShow.map((tbl) => (
+                      <button
+                        key={tbl}
+                        type="button"
+                        onClick={() => {
+                          const newPrompt = `show all rows from ${tbl}`;
+                          onNlInputChange(newPrompt);
+                          if (onApplyDiagnosticSql) {
+                            onApplyDiagnosticSql(`SELECT * FROM ${tbl};`);
+                          }
+                        }}
+                        className="px-2 py-0.5 text-[11px] font-mono rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 cursor-pointer transition-colors"
+                        title={`Query table "${tbl}"`}
+                      >
+                        {tbl}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* 1-click query fix */}
+              {diagnostic.suggestedSql && onApplyDiagnosticSql && (
+                <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-zinc-800">
+                  <code className="text-[11px] font-mono text-emerald-400 truncate max-w-[220px]">
+                    {diagnostic.suggestedSql}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => onApplyDiagnosticSql(diagnostic.suggestedSql!)}
+                    className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-pointer whitespace-nowrap transition-colors"
+                    title="Run this working query"
+                  >
+                    Use Query
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 2. Direct SQL Query Section */}
@@ -639,7 +740,7 @@ export function InputPanel({
           />
 
           {/* Real-time SQL Assistant & Debugger Panel */}
-          {(assistantResult.title || Boolean(error)) && (
+          {(assistantResult.title || (Boolean(error) && !diagnostic)) && (
             <div
               className="mt-2 p-2.5 rounded-lg border text-xs font-mono transition-all space-y-2"
               style={{

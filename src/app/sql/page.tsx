@@ -6,7 +6,7 @@ import { AppHeader, type NavSection } from "@/components/AppHeader";
 import { InputPanel } from "@/components/InputPanel";
 import { DatasetModal } from "@/components/DatasetModal";
 import { ImportDatasetModal } from "@/components/ImportDatasetModal";
-import type { HistoryItem, Tab, ThemeId } from "@/components/nlSqlTypes";
+import type { HistoryItem, Tab, ThemeId, QueryDiagnostic } from "@/components/nlSqlTypes";
 import { VisualizationPanel } from "@/components/VisualizationPanel";
 import { GuideModal } from "@/components/GuideModal";
 import { HelpView } from "@/components/HelpView";
@@ -88,6 +88,7 @@ export default function Home() {
   const [finalRows, setFinalRows] = useState<Row[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [error, setError] = useState<string | undefined>();
+  const [queryDiagnostic, setQueryDiagnostic] = useState<QueryDiagnostic | null>(null);
   const [activeStep, setActiveStep] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -515,6 +516,7 @@ export default function Home() {
         setNlInput(questionToTranslate);
       }
       setError(undefined);
+      setQueryDiagnostic(null);
       setNlInfo(null);
       const isVoiceTranslation = Boolean(audioBase64);
       setIsTranslatingVoice(isVoiceTranslation);
@@ -536,15 +538,31 @@ export default function Home() {
           sql?: string;
           confidence?: number;
           interpretation?: string;
+          isValid?: boolean;
+          diagnostic?: QueryDiagnostic;
           error?: string;
         };
-        if (!response.ok || !result.sql) {
-          throw new Error(result.error ?? "LLM translation failed.");
-        }
+
         if (result.question) {
           setNlInput(result.question);
           questionToTranslate = result.question;
         }
+
+        // If backend returned diagnostic for an invalid query (unknown table, invalid column, etc.)
+        if (result.diagnostic && result.isValid === false) {
+          setQueryDiagnostic(result.diagnostic);
+          if (result.diagnostic.suggestedSql) {
+            setSql(result.diagnostic.suggestedSql);
+          }
+          setError(result.diagnostic.reason);
+          return;
+        }
+
+        if (!response.ok || !result.sql) {
+          throw new Error(result.error ?? "LLM translation failed.");
+        }
+
+        setQueryDiagnostic(null);
         const llmResult = {
           sql: result.sql,
           confidence: result.confidence ?? 1.0,
@@ -556,9 +574,11 @@ export default function Home() {
         if (voiceFeedback && llmResult.interpretation) {
           speakText(llmResult.interpretation);
         }
-      } catch {
+      } catch (err: any) {
+        setQueryDiagnostic(null);
         setError(
-          "Unable to generate a valid SQL query from this request. Try being more specific.",
+          err?.message ||
+            "Unable to generate a valid SQL query from this request. Try being more specific.",
         );
       } finally {
         setIsTranslatingVoice(false);
@@ -752,6 +772,7 @@ export default function Home() {
                 onSqlChange={(newSql) => {
                   setSql(newSql);
                   if (error) setError(undefined);
+                  if (queryDiagnostic) setQueryDiagnostic(null);
                 }}
                 onRunQuery={() => runQuery()}
                 onExampleSelect={selectExample}
@@ -768,6 +789,17 @@ export default function Home() {
                 minPanelHeight={sidePanelMinHeight}
                 maxPanelHeight={sidePanelMaxHeight}
                 panelHeight={sidePanelHeight}
+                diagnostic={queryDiagnostic}
+                onApplyDiagnosticSql={(suggestedSql) => {
+                  setSql(suggestedSql);
+                  setQueryDiagnostic(null);
+                  setError(undefined);
+                  runQuery(suggestedSql);
+                }}
+                onClearDiagnostic={() => {
+                  setQueryDiagnostic(null);
+                  setError(undefined);
+                }}
               />
             </div>
           </div>

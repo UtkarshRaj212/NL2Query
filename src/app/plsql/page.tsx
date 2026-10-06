@@ -14,7 +14,7 @@ import { DevelopedByView } from "@/components/DevelopedByView";
 import { DownloadView } from "@/components/DownloadView";
 import { QuizView } from "@/components/QuizView";
 import { ExamView } from "@/components/ExamView";
-import type { HistoryItem, Tab, ThemeId } from "@/components/nlSqlTypes";
+import type { HistoryItem, Tab, ThemeId, QueryDiagnostic } from "@/components/nlSqlTypes";
 import {
   DATASETS,
   getDefaultSchema,
@@ -91,6 +91,7 @@ export default function PlSqlPage() {
   const [columns, setColumns] = useState<string[]>([]);
   const [dbmsOutput, setDbmsOutput] = useState<string[]>([]);
   const [error, setError] = useState<string | undefined>();
+  const [queryDiagnostic, setQueryDiagnostic] = useState<QueryDiagnostic | null>(null);
   const [activeStep, setActiveStep] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -509,6 +510,7 @@ export default function PlSqlPage() {
         setNlInput(questionToTranslate);
       }
       setError(undefined);
+      setQueryDiagnostic(null);
       setNlInfo(null);
       const isVoiceTranslation = Boolean(audioBase64);
       setIsTranslatingVoice(isVoiceTranslation);
@@ -533,18 +535,30 @@ export default function PlSqlPage() {
           sql?: string;
           confidence?: number;
           interpretation?: string;
+          isValid?: boolean;
+          diagnostic?: QueryDiagnostic;
           error?: string;
         };
-
-        if (!response.ok || !result.sql) {
-          throw new Error(result.error ?? "Gemini PL/SQL translation failed.");
-        }
 
         if (result.question) {
           setNlInput(result.question);
           questionToTranslate = result.question;
         }
 
+        if (result.diagnostic && result.isValid === false) {
+          setQueryDiagnostic(result.diagnostic);
+          if (result.diagnostic.suggestedSql) {
+            setPlsql(result.diagnostic.suggestedSql);
+          }
+          setError(result.diagnostic.reason);
+          return;
+        }
+
+        if (!response.ok || !result.sql) {
+          throw new Error(result.error ?? "Gemini PL/SQL translation failed.");
+        }
+
+        setQueryDiagnostic(null);
         const llmResult = {
           sql: result.sql,
           confidence: result.confidence ?? 1.0,
@@ -559,6 +573,7 @@ export default function PlSqlPage() {
           speakText(llmResult.interpretation);
         }
       } catch (err: any) {
+        setQueryDiagnostic(null);
         setError(
           err?.message || "Unable to generate a valid PL/SQL block from this prompt. Try adding more procedural details.",
         );
@@ -729,6 +744,7 @@ export default function PlSqlPage() {
                 onPlSqlChange={(newCode) => {
                   setPlsql(newCode);
                   if (error) setError(undefined);
+                  if (queryDiagnostic) setQueryDiagnostic(null);
                 }}
                 onRunScript={() => runScript()}
                 onExampleSelect={selectExample}
@@ -745,6 +761,17 @@ export default function PlSqlPage() {
                 minPanelHeight={sidePanelMinHeight}
                 maxPanelHeight={sidePanelMaxHeight}
                 panelHeight={sidePanelHeight}
+                diagnostic={queryDiagnostic}
+                onApplyDiagnosticSql={(suggestedSql) => {
+                  setPlsql(suggestedSql);
+                  setQueryDiagnostic(null);
+                  setError(undefined);
+                  runScript(suggestedSql);
+                }}
+                onClearDiagnostic={() => {
+                  setQueryDiagnostic(null);
+                  setError(undefined);
+                }}
               />
             </div>
           </div>

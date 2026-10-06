@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { DATASETS, type Table } from "@/lib/schema";
 import { parseSQL, validateSQLAgainstSchema } from "@/lib/sqlEngine";
+import { findClosestMatch } from "@/lib/sqlAssistant";
 import env from "@/lib/env";
 
 const requestSchema = z
@@ -20,19 +21,123 @@ const requestSchema = z
   });
 
 const textResponseSchema = z.object({
-  sql: z.string().min(1),
-  interpretation: z.string().min(1),
+  isValid: z
+    .boolean()
+    .describe(
+      "true if query can execute on active schema, false if referencing missing tables or columns.",
+    ),
+  sql: z.string().describe("Clean SQL query on active schema"),
+  interpretation: z.string().describe("1-sentence explanation"),
+  reason: z
+    .string()
+    .optional()
+    .describe("Short 1-sentence reason if invalid (max 120 chars)"),
+  suggestedTables: z
+    .array(z.string())
+    .optional()
+    .describe("1-3 valid table names from active schema"),
+  suggestedColumns: z
+    .array(z.string())
+    .optional()
+    .describe("Valid column names from active schema"),
+  suggestedSql: z
+    .string()
+    .optional()
+    .describe("Working SQL query on active schema"),
 });
 
 const audioResponseSchema = z.object({
   question: z
     .string()
     .describe("Transcribed natural language question spoken in the audio"),
-  sql: z.string().describe("Generated SQL or PL/SQL matching the schema"),
-  interpretation: z
+  isValid: z
+    .boolean()
+    .describe(
+      "true if query can execute on active schema, false if referencing missing tables or columns.",
+    ),
+  sql: z.string().describe("Clean SQL query on active schema"),
+  interpretation: z.string().describe("1-sentence explanation"),
+  reason: z
     .string()
-    .describe("Brief 1-sentence interpretation of the query"),
+    .optional()
+    .describe("Short 1-sentence reason if invalid (max 120 chars)"),
+  suggestedTables: z
+    .array(z.string())
+    .optional()
+    .describe("1-3 valid table names from active schema"),
+  suggestedColumns: z
+    .array(z.string())
+    .optional()
+    .describe("Valid column names from active schema"),
+  suggestedSql: z
+    .string()
+    .optional()
+    .describe("Working SQL query on active schema"),
 });
+
+function sanitizeDiagnostic(
+  currentSchema: Table[],
+  reason?: string,
+  suggestedTables?: string[],
+  suggestedColumns?: string[],
+  suggestedSql?: string,
+) {
+  const schemaTableNames = currentSchema.map((t) => t.name);
+  const schemaTableLowerMap = new Map(
+    currentSchema.map((t) => [t.name.toLowerCase(), t.name]),
+  );
+  const schemaColLowerMap = new Map(
+    currentSchema.flatMap((t) =>
+      t.columns.map((c) => [c.name.toLowerCase(), c.name]),
+    ),
+  );
+
+  // STRICTLY filter suggested tables against real schema tables only
+  let validTables = (suggestedTables || [])
+    .filter((t): t is string => typeof t === "string")
+    .map((t) => schemaTableLowerMap.get(t.trim().toLowerCase()))
+    .filter((t): t is string => Boolean(t));
+
+  validTables = Array.from(new Set(validTables));
+  if (validTables.length <= 1) {
+    validTables = schemaTableNames;
+  }
+
+  // STRICTLY filter suggested columns against real schema columns only
+  let validColumns = (suggestedColumns || [])
+    .filter((c): c is string => typeof c === "string")
+    .map((c) => schemaColLowerMap.get(c.trim().toLowerCase()))
+    .filter((c): c is string => Boolean(c));
+  validColumns = Array.from(new Set(validColumns)).slice(0, 4);
+
+  // Clean reason: strip any HTML/markup or hallucinations, cap to 140 chars
+  let cleanReason = (reason || "")
+    .replace(/<[^>]*>?/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleanReason || cleanReason.length < 5) {
+    cleanReason = `Requested entity does not exist. Available tables: ${schemaTableNames.join(", ")}.`;
+  } else if (cleanReason.length > 140) {
+    cleanReason = cleanReason.slice(0, 140).trim() + "...";
+  }
+
+  let cleanSql = (suggestedSql || "")
+    .replace(/^```(?:sql|plsql)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  if (!cleanSql && validTables[0]) {
+    cleanSql = `SELECT * FROM ${validTables[0]};`;
+  }
+
+  return {
+    isValid: false,
+    reason: cleanReason,
+    suggestedTables: validTables,
+    suggestedColumns: validColumns,
+    suggestedSql: cleanSql,
+    availableTables: schemaTableNames,
+  };
+}
 
 export async function POST(request: Request) {
   try {
@@ -64,7 +169,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fast-path: if question is already direct SQL or direct PL/SQL
+    // Fast-path: if question is already direct SQL or direct PL/SQL and syntax passes
     if (body.question) {
       const q = body.question.trim().replace(/;+$/, "");
       if (isPlSql) {
@@ -74,6 +179,7 @@ export async function POST(request: Request) {
             sql: body.question.trim(),
             confidence: 1.0,
             interpretation: `Direct PL/SQL execution: ${q.slice(0, 50)}...`,
+            isValid: true,
           });
         }
       } else {
@@ -83,15 +189,16 @@ export async function POST(request: Request) {
           )
         ) {
           try {
-            parseSQL(q, currentSchema);
+            validateSQLAgainstSchema(q, currentSchema);
             return NextResponse.json({
               question: body.question,
               sql: q + ";",
               confidence: 1.0,
               interpretation: `Direct SQL execution: ${q.slice(0, 50)}...`,
+              isValid: true,
             });
           } catch {
-            // If direct parse failed, let LLM interpret it
+            // Direct validation failed, let Gemini diagnose why it's invalid
           }
         }
       }
@@ -99,53 +206,62 @@ export async function POST(request: Request) {
 
     const google = createGoogleGenerativeAI({ apiKey });
 
-    const sqlSystemPrompt = `You translate natural-language database questions or instructions into standard SQL for an educational database engine.
-Tables and schema available in this database:
-${JSON.stringify(currentSchema, null, 2)}
+    const schemaSummary = currentSchema.map((t) => ({
+      table: t.name,
+      columns: t.columns.map((c) => ({
+        name: c.name,
+        type: c.type,
+        ...(c.pk ? { primaryKey: true } : {}),
+        ...(c.fk ? { foreignKey: `${c.fk.table}.${c.fk.column}` } : {}),
+      })),
+      sampleRowSnippet: (t.rows || []).slice(0, 2),
+    }));
 
-Supported SQL Statements:
-- DQL: SELECT [DISTINCT] col1, col2 / aggregates (COUNT, SUM, AVG, MIN, MAX) FROM table [JOIN other ON left=right] [WHERE col op val] [GROUP BY col] [HAVING agg op val] [ORDER BY col [ASC|DESC]] [LIMIT n]
-- DML: INSERT INTO table (col1, col2, ...) VALUES (val1, val2, ...);
-- DML: UPDATE table SET col1 = val1, col2 = val2 [WHERE col op val];
-- DML: DELETE FROM table [WHERE col op val];
-- DDL: CREATE TABLE table (col1 TYPE [PRIMARY KEY] [REFERENCES other(col)], ...);
-- DDL: ALTER TABLE table ADD COLUMN col TYPE; or ALTER TABLE table DROP COLUMN col; or ALTER TABLE table RENAME TO new_name;
-- DDL: DROP TABLE table;
-- DDL: TRUNCATE TABLE table;
+    const availableTableNames = currentSchema.map((t) => t.name);
 
-Use exact table and column names matching the schema (case-insensitive). Return only valid SQL matching the engine's supported syntax. Do not output markdown fences or comments.`;
+    const sqlSystemPrompt = `You are a concise, accurate SQL assistant.
 
-    const plsqlSystemPrompt = `You translate natural-language database procedural questions, automation instructions, or business logic into standard Oracle PL/SQL for an educational database engine.
-Tables and schema available in this database:
-${JSON.stringify(currentSchema, null, 2)}
+DATABASE SCHEMA:
+${JSON.stringify(schemaSummary, null, 2)}
+AVAILABLE TABLES: ${availableTableNames.join(", ")}
 
-Requirements for PL/SQL Output:
-1. Return a standard, complete PL/SQL executable block:
-DECLARE
-  -- variable declarations (NUMBER, VARCHAR2, DATE), cursors, constants
-BEGIN
-  -- procedural statements, cursor loops, IF-THEN-ELSIF-ELSE, DML, calculations
-  DBMS_OUTPUT.PUT_LINE(...);
-EXCEPTION
-  WHEN ... THEN ...
-END;
-2. Or a valid CREATE OR REPLACE PROCEDURE / FUNCTION / TRIGGER if requested.
-3. Always include informative DBMS_OUTPUT.PUT_LINE calls to display progress, calculations, or status messages.
-4. Use exact table and column names matching the schema (case-insensitive). Note: check column names carefully (e.g. in "customers", the primary key column is "id").
-5. In cursor FOR loops (FOR r IN cursor_name LOOP), access cursor record fields with the record variable prefix (e.g. r.id, r.name).
-6. Ensure strings use single quotes and string concatenation uses || (e.g. 'Found ' || v_count).
-7. In WHERE clauses, use direct column comparisons matching the data (e.g. WHERE city = 'Delhi', WHERE status = 'shipped').
-8. When transactions (ROLLBACK or COMMIT) are requested, use standard COMMIT; or ROLLBACK; statements with informative DBMS_OUTPUT.PUT_LINE.
-9. When writing EXCEPTION handlers, use WHEN OTHERS THEN with ROLLBACK; and DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
-10. Do NOT include markdown code fences (\`\`\`) or commentary outside the PL/SQL code. Return only valid PL/SQL.`;
+RULES:
+1. If the request matches the schema:
+   - Set isValid: true
+   - Set sql: Valid query using ONLY tables and columns from the schema.
+   - Set interpretation: 1 short sentence summary.
+2. If the user requests a table or column that does NOT exist (e.g. "shops"):
+   - Set isValid: false
+   - Set reason: Short note (e.g. 'Table "shops" does not exist in this database. Available tables: ${availableTableNames.join(", ")}.')
+   - Set suggestedTables: 1 or 2 real schema tables (e.g. ["products"]).
+   - Set suggestedSql: Working query on the suggested table (e.g. 'SELECT * FROM products;').
+   - Keep answers strictly concise. Do NOT hallucinate long text or repeat words.`;
+
+    const plsqlSystemPrompt = `You are a concise Oracle PL/SQL assistant.
+
+DATABASE SCHEMA:
+${JSON.stringify(schemaSummary, null, 2)}
+AVAILABLE TABLES: ${availableTableNames.join(", ")}
+
+RULES:
+1. If valid: isValid: true, sql: clean PL/SQL block, interpretation: short summary.
+2. If referencing missing table/column: isValid: false, reason: short note, suggestedTables: [1-2 real schema tables], suggestedSql: working PL/SQL script. Keep it concise.`;
 
     const systemPrompt = isPlSql ? plsqlSystemPrompt : sqlSystemPrompt;
 
     let generatedSql = "";
     let interpretation = "";
     let transcribedQuestion = body.question || "";
+    let isValidResponse = true;
+    let errorReason: string | undefined;
+    let suggestedTables: string[] | undefined;
+    let suggestedColumns: string[] | undefined;
+    let suggestedSql: string | undefined;
 
-    const candidateModels = ["gemini-3.6-flash", "gemini-3.8-flash"];
+    const candidateModels = [
+      "gemini-3.8-flash",
+      "gemini-3.6-flash",
+    ];
     let lastError: any = null;
 
     if (body.audioBase64) {
@@ -155,6 +271,7 @@ END;
             generateObject({
               model: google(mName),
               schema: audioResponseSchema,
+              temperature: 0,
               system: systemPrompt,
               messages: [
                 {
@@ -163,8 +280,8 @@ END;
                     {
                       type: "text",
                       text: isPlSql
-                        ? "Listen to the spoken audio and translate it into a valid Oracle PL/SQL block matching the database schema. Provide the transcribed question and interpretation."
-                        : "Listen to the spoken audio and translate it into a valid SQL query matching the schema. Provide the transcribed question and interpretation.",
+                        ? "Listen to the spoken audio and translate it into a valid Oracle PL/SQL block matching the database schema. If entities do not exist, diagnose the issue."
+                        : "Listen to the spoken audio and translate it into a valid SQL query matching the schema. If entities do not exist, diagnose the issue.",
                     },
                     {
                       type: "file",
@@ -183,6 +300,11 @@ END;
           generatedSql = result.object.sql.trim();
           interpretation = result.object.interpretation;
           transcribedQuestion = result.object.question;
+          isValidResponse = result.object.isValid;
+          errorReason = result.object.reason;
+          suggestedTables = result.object.suggestedTables;
+          suggestedColumns = result.object.suggestedColumns;
+          suggestedSql = result.object.suggestedSql;
           break;
         } catch (e: any) {
           lastError = e;
@@ -200,50 +322,166 @@ END;
               schema: textResponseSchema,
               system: systemPrompt,
               prompt: body.question!,
+              temperature: 0,
             }),
             new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error("AI timeout")), 60000),
             ),
           ]);
 
-          generatedSql = result.object.sql.trim();
-          interpretation = result.object.interpretation;
+          generatedSql = (result.object.sql || result.object.suggestedSql || "").trim();
+          interpretation = result.object.interpretation || "";
+          isValidResponse = result.object.isValid;
+          errorReason = result.object.reason;
+          suggestedTables = result.object.suggestedTables;
+          suggestedColumns = result.object.suggestedColumns;
+          suggestedSql = result.object.suggestedSql;
           break;
         } catch (e: any) {
+          console.error(`[AI Translate] Model ${mName} failed:`, e?.message || e);
           lastError = e;
         }
       }
-      if (!generatedSql) {
-        throw lastError || new Error("Failed to generate query translation.");
+      if (!generatedSql && isValidResponse) {
+        const qLower = (body.question || "").toLowerCase();
+        const knownTables = currentSchema.map((t) => t.name.toLowerCase());
+        const fromMatch = qLower.match(/(?:from|table|into|update)\s+([a-zA-Z0-9_]+)/i);
+        const mentionedEntity = fromMatch ? fromMatch[1].toLowerCase() : undefined;
+
+        if (mentionedEntity && !knownTables.includes(mentionedEntity)) {
+          const closest = findClosestMatch(
+            mentionedEntity,
+            currentSchema.map((t) => t.name),
+          );
+          const fallbackTable = closest || currentSchema[0]?.name || "table";
+          const diag = sanitizeDiagnostic(
+            currentSchema,
+            `Table "${mentionedEntity}" does not exist in this database. Available tables: ${currentSchema.map((t) => t.name).join(", ")}.`,
+            currentSchema.map((t) => t.name),
+            [],
+            `SELECT * FROM ${fallbackTable};`,
+          );
+          return NextResponse.json({
+            question: transcribedQuestion,
+            sql: diag.suggestedSql,
+            confidence: 0,
+            interpretation: diag.reason,
+            isValid: false,
+            diagnostic: diag,
+          });
+        }
+
+        const matchedTable = currentSchema.find((t) =>
+          qLower.includes(t.name.toLowerCase()),
+        );
+        if (matchedTable) {
+          return NextResponse.json({
+            question: transcribedQuestion,
+            sql: `SELECT * FROM ${matchedTable.name};`,
+            confidence: 0.9,
+            interpretation: `Retrieve rows from ${matchedTable.name}.`,
+            isValid: true,
+          });
+        }
+
+        const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
+        throw new Error(
+          errMsg.includes("Quota exceeded")
+            ? "Gemini API free quota exceeded. Please check your API key."
+            : errMsg,
+        );
       }
     }
 
     // Clean up any stray markdown fences
     generatedSql = generatedSql.replace(/^```(?:sql|plsql)?\s*/i, "").replace(/\s*```$/, "").trim();
 
+    // ── Diagnostic Branch 1: Gemini identified an invalid request ────
+    if (!isValidResponse) {
+      const diagnostic = sanitizeDiagnostic(
+        currentSchema,
+        errorReason,
+        suggestedTables,
+        suggestedColumns,
+        suggestedSql || generatedSql,
+      );
+      return NextResponse.json({
+        question: transcribedQuestion,
+        sql: diagnostic.suggestedSql,
+        confidence: 0,
+        interpretation: diagnostic.reason,
+        isValid: false,
+        diagnostic,
+      });
+    }
+
+    // ── Diagnostic Branch 2: Gemini marked valid, but schema validation caught an error ──
     if (!isPlSql) {
       try {
         validateSQLAgainstSchema(generatedSql, dataset?.schema ?? currentSchema);
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Generated SQL is unsupported.";
-        return NextResponse.json(
-          { error: `The LLM returned unusable SQL: ${message}` },
-          { status: 422 },
+      } catch (validationErr: any) {
+        const validationMsg =
+          validationErr instanceof Error ? validationErr.message : String(validationErr);
+        const tableMatch = validationMsg.match(/Unknown table ["']?(\w+)["']?/i);
+        const colMatch = validationMsg.match(/Unknown column ["']?(\w+)["']?/i);
+
+        let fallbackTable = currentSchema[0]?.name || "table";
+        let note = validationMsg;
+
+        if (tableMatch) {
+          const badTbl = tableMatch[1];
+          const closest = findClosestMatch(
+            badTbl,
+            currentSchema.map((t) => t.name),
+          );
+          if (closest) {
+            fallbackTable = closest;
+            note = `Table "${badTbl}" does not exist. Did you mean "${closest}"?`;
+          } else {
+            note = `Table "${badTbl}" does not exist. Available tables: ${currentSchema.map((t) => t.name).join(", ")}.`;
+          }
+        } else if (colMatch) {
+          note = `Column "${colMatch[1]}" does not exist on that table.`;
+        }
+
+        const diagnostic = sanitizeDiagnostic(
+          currentSchema,
+          note,
+          currentSchema.map((t) => t.name),
+          [],
+          `SELECT * FROM ${fallbackTable};`,
         );
+
+        return NextResponse.json({
+          question: transcribedQuestion,
+          sql: diagnostic.suggestedSql,
+          confidence: 0,
+          interpretation: diagnostic.reason,
+          isValid: false,
+          diagnostic,
+        });
       }
     } else {
-      // PL/SQL basic syntax verification
       if (
         !/begin\b/i.test(generatedSql) &&
         !/create\s+(or\s+replace\s+)?(procedure|function|trigger)\b/i.test(generatedSql)
       ) {
-        return NextResponse.json(
-          { error: "The generated PL/SQL block does not contain a valid BEGIN...END structure." },
-          { status: 422 },
+        const fallbackTable = currentSchema[0]?.name || "table";
+        const diagnostic = sanitizeDiagnostic(
+          currentSchema,
+          "The generated PL/SQL block is missing an executable BEGIN...END block.",
+          [fallbackTable],
+          [],
+          `BEGIN\n  DBMS_OUTPUT.PUT_LINE('Hello from ${fallbackTable}');\nEND;`,
         );
+        return NextResponse.json({
+          question: transcribedQuestion,
+          sql: diagnostic.suggestedSql,
+          confidence: 0,
+          interpretation: diagnostic.reason,
+          isValid: false,
+          diagnostic,
+        });
       }
     }
 
@@ -252,13 +490,11 @@ END;
       sql: generatedSql,
       confidence: 1,
       interpretation,
+      isValid: true,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Translation failed.";
-    const status = message.startsWith("Missing required environment variable")
-      ? 503
-      : 502;
+    const message = error instanceof Error ? error.message : "Translation failed.";
+    const status = message.startsWith("Missing required environment variable") ? 503 : 502;
     return NextResponse.json({ error: message }, { status });
   }
 }
