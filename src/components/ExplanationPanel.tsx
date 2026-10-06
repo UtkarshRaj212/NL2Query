@@ -172,27 +172,34 @@ export function ExplanationPanel({
               </p>
             </div>
 
-            {/* <div
-              className="border-t pt-3.5"
+            <div
+              className="border-t pt-3.5 space-y-2"
               style={{ borderColor: "var(--border)" }}
             >
-              <h4
-                className="text-xs font-bold uppercase mb-2 tracking-wider"
-                style={{ color: "var(--muted)" }}
-              >
-                Relational Notation / Semantics
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4
+                  className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]"
+                >
+                  Relational Algebra Equivalence
+                </h4>
+                <span className="text-[11px] font-mono opacity-70" style={{ color: "var(--muted)" }}>
+                  First-Order Semantics
+                </span>
+              </div>
               <div
-                className="p-2.5 rounded-xl font-mono text-xs font-semibold border"
+                className="p-2.5 rounded-xl font-mono text-xs font-semibold border overflow-x-auto"
                 style={{
                   background: "var(--surface-subtle)",
                   borderColor: "var(--border)",
-                  color: "var(--foreground)",
+                  color: "var(--accent)",
                 }}
               >
                 {algebraFor(current.stage, lastResult?.command)}
               </div>
-            </div> */}
+              <p className="text-[11px] opacity-80 leading-snug" style={{ color: "var(--foreground)" }}>
+                Translates the declarative {current.stage} clause into procedural relational algebra operators over tuple relation spaces.
+              </p>
+            </div>
           </div>
         )}
       </div>

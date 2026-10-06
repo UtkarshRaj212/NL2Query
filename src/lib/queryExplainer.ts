@@ -1,5 +1,11 @@
 import type { Table } from "./schema";
 import type { PipelineStep, Row, StatementType, SQLCommand } from "./sqlEngine";
+import {
+  generateRelationalAlgebra,
+  getAlgebraPartForStage,
+  type FullRelationalAlgebra,
+  type RelationalAlgebraPart,
+} from "./relationalAlgebra";
 
 export interface ExplanationStep {
   stepNumber: number;
@@ -12,6 +18,8 @@ export interface ExplanationStep {
   }[];
   sampleRows?: Row[];
   columns?: string[];
+  /** Detailed relational algebra decomposition for this specific step */
+  algebra?: RelationalAlgebraPart;
 }
 
 export interface QueryExplanation {
@@ -20,6 +28,8 @@ export interface QueryExplanation {
   command?: SQLCommand;
   summary: string;
   steps: ExplanationStep[];
+  /** Full composed relational algebra formula and comprehensive part explanations */
+  relationalAlgebra?: FullRelationalAlgebra;
   pipelineConnection: {
     stepNumber: number;
     stage: string;
@@ -35,7 +45,8 @@ export interface QueryExplanation {
 }
 
 /**
- * Builds a dynamic, comprehensive query explanation using real execution data and schema rows.
+ * Builds a dynamic, comprehensive query explanation using real execution data, schema rows,
+ * and mathematical relational algebra equivalences.
  */
 export function buildQueryExplanation(
   sql: string,
@@ -48,6 +59,17 @@ export function buildQueryExplanation(
 ): QueryExplanation {
   const steps: ExplanationStep[] = [];
   let stepIndex = 1;
+
+  // Generate full relational algebra decomposition
+  const relationalAlgebra = generateRelationalAlgebra(
+    sql,
+    schema,
+    pipelineSteps,
+    finalRows,
+    columns,
+    statementType,
+    command,
+  );
 
   // Extract from pipeline steps
   const fromStep = pipelineSteps.find((s) => s.stage === "FROM");
@@ -65,6 +87,15 @@ export function buildQueryExplanation(
   // DDL / DML Special Handling
   if (statementType !== "DQL" || command !== "SELECT") {
     const actionDesc = mutationStep ? mutationStep.detail : `Executed ${command} operation on database catalog.`;
+    const algebraPart = getAlgebraPartForStage(
+      mutationStep ? mutationStep.stage : command,
+      command,
+      actionDesc,
+      finalRows.length,
+      columns,
+      command,
+    );
+
     steps.push({
       stepNumber: stepIndex++,
       clause: command,
@@ -77,6 +108,7 @@ export function buildQueryExplanation(
       ],
       sampleRows: mutationStep?.rows.slice(0, 5),
       columns: mutationStep?.columns,
+      algebra: algebraPart,
     });
 
     return {
@@ -85,6 +117,7 @@ export function buildQueryExplanation(
       command,
       summary: `The database engine processed a ${statementType} (${command}) command to modify table definitions or records.`,
       steps,
+      relationalAlgebra,
       pipelineConnection: pipelineSteps.map((s, idx) => ({
         stepNumber: idx + 1,
         stage: s.stage,
@@ -104,6 +137,8 @@ export function buildQueryExplanation(
   if (fromStep) {
     const tableName = fromStep.title.replace(/^(?:FROM|Scan)\s+/i, "").trim() || "relations";
     const initialCount = fromStep.rowCount;
+    const algebraPart = getAlgebraPartForStage("FROM", fromStep.title, fromStep.detail, initialCount, fromStep.columns);
+
     steps.push({
       stepNumber: stepIndex++,
       clause: "FROM",
@@ -115,12 +150,15 @@ export function buildQueryExplanation(
       ],
       sampleRows: fromStep.rows.slice(0, 5),
       columns: fromStep.columns,
+      algebra: algebraPart,
     });
   }
 
   // 2. JOIN Step
   if (joinStep) {
     const prevRows = fromStep ? fromStep.rowCount : joinStep.rowCount;
+    const algebraPart = getAlgebraPartForStage("JOIN", joinStep.title, joinStep.detail, joinStep.rowCount, joinStep.columns);
+
     steps.push({
       stepNumber: stepIndex++,
       clause: "JOIN",
@@ -132,6 +170,7 @@ export function buildQueryExplanation(
       ],
       sampleRows: joinStep.rows.slice(0, 5),
       columns: joinStep.columns,
+      algebra: algebraPart,
     });
   }
 
@@ -141,6 +180,7 @@ export function buildQueryExplanation(
     const matchedCount = whereStep.rowCount;
     const removedCount = Math.max(0, prevCount - matchedCount);
     const conditionMatch = whereStep.title.replace(/^WHERE\s+/i, "") || "Boolean predicate";
+    const algebraPart = getAlgebraPartForStage("WHERE", whereStep.title, whereStep.detail, matchedCount, whereStep.columns);
 
     steps.push({
       stepNumber: stepIndex++,
@@ -155,11 +195,14 @@ export function buildQueryExplanation(
       ],
       sampleRows: whereStep.rows.slice(0, 5),
       columns: whereStep.columns,
+      algebra: algebraPart,
     });
   }
 
   // 4. GROUP BY Step
   if (groupStep) {
+    const algebraPart = getAlgebraPartForStage("GROUP BY", groupStep.title, groupStep.detail, groupStep.rowCount, groupStep.columns);
+
     steps.push({
       stepNumber: stepIndex++,
       clause: "GROUP BY",
@@ -170,11 +213,14 @@ export function buildQueryExplanation(
       ],
       sampleRows: groupStep.rows.slice(0, 5),
       columns: groupStep.columns,
+      algebra: algebraPart,
     });
   }
 
   // 5. HAVING Step
   if (havingStep) {
+    const algebraPart = getAlgebraPartForStage("HAVING", havingStep.title, havingStep.detail, havingStep.rowCount, havingStep.columns);
+
     steps.push({
       stepNumber: stepIndex++,
       clause: "HAVING",
@@ -185,11 +231,14 @@ export function buildQueryExplanation(
       ],
       sampleRows: havingStep.rows.slice(0, 5),
       columns: havingStep.columns,
+      algebra: algebraPart,
     });
   }
 
   // 6. DISTINCT Step
   if (distinctStep) {
+    const algebraPart = getAlgebraPartForStage("DISTINCT", distinctStep.title, distinctStep.detail, distinctStep.rowCount, distinctStep.columns);
+
     steps.push({
       stepNumber: stepIndex++,
       clause: "DISTINCT",
@@ -200,11 +249,14 @@ export function buildQueryExplanation(
       ],
       sampleRows: distinctStep.rows.slice(0, 5),
       columns: distinctStep.columns,
+      algebra: algebraPart,
     });
   }
 
   // 7. ORDER BY Step
   if (orderStep) {
+    const algebraPart = getAlgebraPartForStage("ORDER BY", orderStep.title, orderStep.detail, orderStep.rowCount, orderStep.columns);
+
     steps.push({
       stepNumber: stepIndex++,
       clause: "ORDER BY",
@@ -215,11 +267,14 @@ export function buildQueryExplanation(
       ],
       sampleRows: orderStep.rows.slice(0, 5),
       columns: orderStep.columns,
+      algebra: algebraPart,
     });
   }
 
   // 8. LIMIT Step
   if (limitStep) {
+    const algebraPart = getAlgebraPartForStage("LIMIT", limitStep.title, limitStep.detail, limitStep.rowCount, limitStep.columns);
+
     steps.push({
       stepNumber: stepIndex++,
       clause: "LIMIT",
@@ -230,6 +285,7 @@ export function buildQueryExplanation(
       ],
       sampleRows: limitStep.rows.slice(0, 5),
       columns: limitStep.columns,
+      algebra: algebraPart,
     });
   }
 
@@ -237,6 +293,8 @@ export function buildQueryExplanation(
   if (selectStep || columns.length > 0) {
     const projCols = columns.length > 0 ? columns : (selectStep ? selectStep.columns : []);
     const projRows = finalRows.length;
+    const algebraPart = getAlgebraPartForStage("SELECT", selectStep?.title || "SELECT", selectStep?.detail || "", projRows, projCols);
+
     steps.push({
       stepNumber: stepIndex++,
       clause: "SELECT",
@@ -248,6 +306,7 @@ export function buildQueryExplanation(
       ],
       sampleRows: finalRows.slice(0, 5),
       columns: projCols,
+      algebra: algebraPart,
     });
   }
 
@@ -285,6 +344,7 @@ export function buildQueryExplanation(
     command,
     summary,
     steps,
+    relationalAlgebra,
     pipelineConnection,
     finalOutputSummary: {
       rowCount: finalRows.length,

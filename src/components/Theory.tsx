@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { PipelineStep, Row, SQLCommand, StatementType } from "@/lib/sqlEngine";
 import type { Table } from "@/lib/schema";
 import type { QueryExplanation } from "@/lib/queryExplainer";
+import { getAlgebraPartForStage } from "@/lib/relationalAlgebra";
 
 export interface TheoryProps {
   current?: PipelineStep;
@@ -455,34 +456,130 @@ export function Theory({
           </div>
 
           {/* Relational Algebra & Semantics */}
-          <div
-            className="p-4 rounded-xl border space-y-2.5"
-            style={{
-              background: "var(--surface-subtle)",
-              borderColor: "var(--border)",
-            }}
-          >
-            <div className="flex items-center justify-between">
-              <h4
-                className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]"
+          {(() => {
+            const stagePart = getAlgebraPartForStage(
+              current.stage,
+              current.title,
+              current.detail,
+              current.rowCount,
+              current.columns,
+              command,
+            );
+            return (
+              <div
+                className="p-4 rounded-xl border space-y-3"
+                style={{
+                  background: "var(--surface-subtle)",
+                  borderColor: "var(--border)",
+                }}
               >
-                Relational Algebra Equivalence
-              </h4>
-              <span className="text-[11px] font-mono opacity-70" style={{ color: "var(--muted)" }}>
-                First-Order Predicate Logic
-              </span>
-            </div>
-            <pre
-              className="p-3 rounded-lg font-mono text-sm font-semibold border overflow-x-auto"
-              style={{
-                background: "var(--panel)",
-                borderColor: "var(--border)",
-                color: "var(--accent)",
-              }}
-            >
-              {algebraForStage(current.stage, command)}
-            </pre>
-          </div>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-6 h-6 rounded flex items-center justify-center font-serif font-bold text-sm border"
+                      style={{
+                        background: "var(--panel)",
+                        borderColor: "var(--border)",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      {stagePart.symbol}
+                    </span>
+                    <h4
+                      className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]"
+                    >
+                      Relational Algebra Equivalence: {stagePart.name}
+                    </h4>
+                  </div>
+                  <span className="text-[11px] font-mono opacity-70" style={{ color: "var(--muted)" }}>
+                    First-Order Predicate Logic
+                  </span>
+                </div>
+
+                {/* Stage Formula */}
+                <pre
+                  className="p-3 rounded-lg font-mono text-sm font-semibold border overflow-x-auto"
+                  style={{
+                    background: "var(--panel)",
+                    borderColor: "var(--border)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  {algebraForStage(current.stage, command)}
+                </pre>
+
+                {/* Composed Query Formula if available */}
+                {explanation?.relationalAlgebra?.formula && (
+                  <div className="p-2.5 rounded-lg border text-xs space-y-1" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider opacity-60 block">
+                      Full Query Composed Expression:
+                    </span>
+                    <code className="font-mono text-xs font-bold block overflow-x-auto text-[var(--foreground)]">
+                      {explanation.relationalAlgebra.formula}
+                    </code>
+                  </div>
+                )}
+
+                {/* Dissection of Each Part of the Stage Algebra */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
+                  <div className="p-2.5 rounded-lg bg-[var(--panel)] border space-y-0.5" style={{ borderColor: "var(--border)" }}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)] block">
+                      1. Subscript / Parameter Part
+                    </span>
+                    <span className="font-mono font-bold text-xs block truncate text-[var(--foreground)]">
+                      {stagePart.subscript}
+                    </span>
+                    <span className="text-[11px] opacity-80 block leading-tight">
+                      {stagePart.subscriptExplanation}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-[var(--panel)] border space-y-0.5" style={{ borderColor: "var(--border)" }}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)] block">
+                      2. Input Operand Part
+                    </span>
+                    <span className="font-mono font-bold text-xs block truncate text-[var(--foreground)]">
+                      {stagePart.inputOperand}
+                    </span>
+                    <span className="text-[11px] opacity-80 block leading-tight">
+                      {stagePart.inputExplanation}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-[var(--panel)] border space-y-0.5" style={{ borderColor: "var(--border)" }}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)] block">
+                      3. Output Relation Part
+                    </span>
+                    <span className="font-mono font-bold text-xs block truncate text-[var(--foreground)]">
+                      {stagePart.outputResult}
+                    </span>
+                    <span className="text-[11px] opacity-80 block leading-tight">
+                      {stagePart.outputExplanation}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-[var(--panel)] border space-y-0.5" style={{ borderColor: "var(--border)" }}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)] block">
+                      4. Formal Definition
+                    </span>
+                    <span className="font-mono font-bold text-xs block truncate text-[var(--accent)]">
+                      {stagePart.formalDefinition}
+                    </span>
+                    <span className="text-[11px] opacity-80 block leading-tight">
+                      {stagePart.mathematicalRole}
+                    </span>
+                  </div>
+                </div>
+
+                {stagePart.optimizationRule && (
+                  <div className="p-2 rounded-lg bg-[var(--panel)] border text-[11px] flex items-center gap-1.5" style={{ borderColor: "var(--border)" }}>
+                    <span className="font-bold text-[var(--accent)] shrink-0">💡 Optimization:</span>
+                    <span className="opacity-90">{stagePart.optimizationRule}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Comprehensive Complexity & Disk I/O Breakdown */}
           <div
