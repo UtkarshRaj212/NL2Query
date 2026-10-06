@@ -37,6 +37,7 @@ import {
   triggerFileDownload,
   type ReportExecutionData,
 } from "@/lib/reportGenerator";
+import { TerminalView } from "@/components/TerminalView";
 
 const CUSTOM_DATASETS_KEY = "nlp-sql-custom-datasets";
 
@@ -44,6 +45,7 @@ export default function Home() {
   const router = useRouter();
   const [theme, setTheme] = useState<ThemeId>("slate");
   const [activeSection, setActiveSection] = useState<NavSection>("workspace");
+  const [isTerminalMode, setIsTerminalMode] = useState(false);
   const [customDatasets, setCustomDatasets] = useState<Dataset[]>([]);
   const [deletedBuiltinIds, setDeletedBuiltinIds] = useState<string[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState("ecommerce");
@@ -693,7 +695,25 @@ export default function Home() {
           setActiveSection(section);
         }}
         mode="sql"
+        isTerminalMode={isTerminalMode}
+        onToggleTerminal={() => setIsTerminalMode((prev) => !prev)}
       />
+
+      {/* Embedded Terminal Mode (Full screen CMD / Terminal Takeover) */}
+      {isTerminalMode && (
+        <TerminalView
+          activeSchema={activeSchema}
+          onUpdateSchema={setActiveSchema}
+          datasetName={selectedDataset.name || selectedDataset.id}
+          datasets={allDatasets}
+          selectedDatasetId={selectedDatasetId}
+          onSelectDataset={changeDataset}
+          mode="sql"
+          onExit={() => setIsTerminalMode(false)}
+          onReset={() => setActiveSchema(getDefaultSchema(selectedDataset.id, allDatasets))}
+          isDark={isDark}
+        />
+      )}
 
       {/* Primary Content Viewport Container */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full relative">

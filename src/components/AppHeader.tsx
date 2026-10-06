@@ -81,6 +81,8 @@ interface AppHeaderProps {
   activeSection?: NavSection;
   onSectionChange?: (section: NavSection) => void;
   mode?: "sql" | "plsql";
+  isTerminalMode?: boolean;
+  onToggleTerminal?: () => void;
 }
 
 export function AppHeader({
@@ -89,6 +91,8 @@ export function AppHeader({
   activeSection = "workspace",
   onSectionChange,
   mode,
+  isTerminalMode = false,
+  onToggleTerminal,
 }: AppHeaderProps) {
   const isDark = theme !== "pearl";
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -238,72 +242,94 @@ export function AppHeader({
           </nav>
         </div>
 
-        {/* Light / Dark Mode Toggle Button */}
-        <button
-          type="button"
-          onClick={() => onThemeChange(isDark ? "pearl" : "slate")}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer shadow-2xs hover:opacity-90 active:scale-95 select-none shrink-0"
-        style={{
-          background: "var(--surface-subtle)",
-          color: "var(--foreground)",
-          borderColor: "var(--border)",
-        }}
-        aria-label={isDark ? "Switch to Light mode" : "Switch to Dark mode"}
-        title={isDark ? "Switch to Light mode" : "Switch to Dark mode"}
-      >
-        {isDark ? (
-          <>
-            {/* Moon Icon for Dark Mode */}
-            <svg
-              className="w-3.5 h-3.5 text-indigo-400 shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        {/* Right Action Tools: Terminal Mode & Light/Dark Mode */}
+        <div className="flex items-center gap-2 shrink-0">
+          {onToggleTerminal && (
+            <button
+              type="button"
+              onClick={onToggleTerminal}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer shadow-2xs active:scale-95 select-none ${
+                isTerminalMode
+                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-emerald-500/10 shadow-sm"
+                  : isDark
+                    ? "bg-zinc-800/80 text-zinc-300 hover:text-white border-zinc-700/80 hover:bg-zinc-800"
+                    : "bg-slate-100 text-slate-800 hover:text-black border-slate-300 hover:bg-slate-200"
+              }`}
+              title={isTerminalMode ? "Switch to Graphical GUI Workspace (ESC)" : "Open Interactive Terminal (CMD/CLI)"}
+              aria-label={isTerminalMode ? "Switch to GUI Mode" : "Open Interactive Terminal"}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
-              />
-            </svg>
-            <span className="font-semibold text-xs">Dark</span>
-          </>
-        ) : (
-          <>
-            {/* Sun Icon for Light Mode */}
-            <svg
-              className="w-3.5 h-3.5 text-amber-500 shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
-              />
-            </svg>
-            <span className="font-semibold text-xs">Light</span>
-          </>
-        )}
+              <span className={`font-bold ${isTerminalMode ? "text-emerald-400" : "text-emerald-500"}`}>&gt;_</span>
+              <span className="hidden xs:inline sm:inline">{isTerminalMode ? "GUI Mode" : "Terminal"}</span>
+            </button>
+          )}
 
-        {/* Mini Pill Switch Track */}
-        <div
-          className="w-7 h-4 rounded-full p-0.5 flex items-center transition-colors shrink-0"
-          style={{
-            background: isDark ? "#3f3f46" : "#cbd5e1",
-          }}
-        >
-          <div
-            className={`w-3 h-3 rounded-full bg-white shadow-xs transition-transform duration-200 ${
-              isDark ? "translate-x-3" : "translate-x-0"
-            }`}
-          />
+          {/* Light / Dark Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={() => onThemeChange(isDark ? "pearl" : "slate")}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer shadow-2xs hover:opacity-90 active:scale-95 select-none shrink-0"
+            style={{
+              background: "var(--surface-subtle)",
+              color: "var(--foreground)",
+              borderColor: "var(--border)",
+            }}
+            aria-label={isDark ? "Switch to Light mode" : "Switch to Dark mode"}
+            title={isDark ? "Switch to Light mode" : "Switch to Dark mode"}
+          >
+            {isDark ? (
+              <>
+                {/* Moon Icon for Dark Mode */}
+                <svg
+                  className="w-3.5 h-3.5 text-indigo-400 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+                  />
+                </svg>
+                <span className="font-semibold text-xs hidden sm:inline">Dark</span>
+              </>
+            ) : (
+              <>
+                {/* Sun Icon for Light Mode */}
+                <svg
+                  className="w-3.5 h-3.5 text-amber-500 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                  />
+                </svg>
+                <span className="font-semibold text-xs hidden sm:inline">Light</span>
+              </>
+            )}
+
+            {/* Mini Pill Switch Track */}
+            <div
+              className="w-7 h-4 rounded-full p-0.5 flex items-center transition-colors shrink-0"
+              style={{
+                background: isDark ? "#3f3f46" : "#cbd5e1",
+              }}
+            >
+              <div
+                className={`w-3 h-3 rounded-full bg-white shadow-xs transition-transform duration-200 ${
+                  isDark ? "translate-x-3" : "translate-x-0"
+                }`}
+              />
+            </div>
+          </button>
         </div>
-      </button>
-    </header>
+      </header>
 
     {/* Mobile Backdrop Overlay */}
     {isMobileMenuOpen && (
@@ -443,6 +469,32 @@ export function AppHeader({
           );
         })}
       </div>
+
+      {/* Terminal Mode Action in Mobile Drawer */}
+      {onToggleTerminal && (
+        <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              onToggleTerminal();
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer shadow-xs ${
+              isTerminalMode
+                ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50"
+                : isDark
+                  ? "bg-zinc-800 text-zinc-200 border-zinc-700"
+                  : "bg-slate-100 text-slate-800 border-slate-300"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-400 font-bold">&gt;_</span>
+              <span>{isTerminalMode ? "Switch to GUI Workspace" : "Open SQL Terminal (CLI)"}</span>
+            </div>
+            <span className="text-[10px] opacity-70 font-normal">ESC</span>
+          </button>
+        </div>
+      )}
 
       {/* Drawer Footer with Theme Toggle */}
       <div
