@@ -434,7 +434,7 @@ export function QueryExplanationView({
                           borderColor: "var(--border)",
                         }}
                       >
-                        <span className="font-bold text-[var(--accent)] shrink-0">💡 Optimization Law:</span>
+                        <span className="font-bold text-[var(--accent)] shrink-0">Optimization Law:</span>
                         <span className="opacity-90 leading-snug" style={{ color: "var(--foreground)" }}>
                           {part.optimizationRule}
                         </span>

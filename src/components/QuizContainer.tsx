@@ -215,7 +215,9 @@ function RecentQuizzesPane({
                 borderColor: "var(--border)",
               }}
             >
-              <span>📊</span>
+              <svg className="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
             </div>
             <p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
               {mode === "sql" ? "No Recent SQL Quizzes" : "No Recent PL/SQL Quizzes"}
@@ -868,15 +870,9 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
             }}
           >
             {isDark ? (
-              <>
-                <span className="text-indigo-400">🌙</span>
-                <span className="font-semibold text-xs hidden sm:inline">Dark</span>
-              </>
+              <span className="font-semibold text-xs">Dark</span>
             ) : (
-              <>
-                <span className="text-amber-500">☀️</span>
-                <span className="font-semibold text-xs hidden sm:inline">Light</span>
-              </>
+              <span className="font-semibold text-xs">Light</span>
             )}
           </button>
         </div>
@@ -991,7 +987,7 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
                         >
                           <span className="text-sm font-bold">{diff}</span>
                           <span className="text-[10px] opacity-75 font-mono">
-                            {isSelected ? "✓ Included" : "+ Add"}
+                            {isSelected ? "Included" : "+ Add"}
                           </span>
                         </button>
                       );
@@ -1054,7 +1050,6 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
                     }}
                   >
                     <span>Start Quiz</span>
-                    <span>🚀</span>
                   </button>
                   <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-2 text-center">
                     Questions are presented 1 at a time. Options: Skip & Submit only.
@@ -1322,7 +1317,9 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
                           borderColor: "var(--border)",
                         }}
                       >
-                        <span>📝</span>
+                        <svg className="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
                       </div>
                       <p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
                         No Questions Attempted Yet
@@ -1531,11 +1528,11 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
                       {isCurrentSubmitted ? (
                         currentRec?.isCorrect ? (
                           <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30 flex items-center gap-1">
-                            ✓ Correct
+                            Correct
                           </span>
                         ) : (
                           <span className="text-xs font-bold text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/30 flex items-center gap-1">
-                            ✗ Incorrect
+                            Incorrect
                           </span>
                         )
                       ) : currentRec?.isSkipped ? (
@@ -1680,7 +1677,7 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
                       }`}
                     >
                       <div className="flex items-center gap-2 font-bold">
-                        <span>{currentRec?.isCorrect ? "🎉 Correct!" : "❌ Incorrect"}</span>
+                        <span>{currentRec?.isCorrect ? "Correct!" : "Incorrect"}</span>
                       </div>
                       <p className="font-sans leading-relaxed text-xs opacity-90">
                         {currentRec?.feedback}
@@ -1695,7 +1692,7 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
                       style={{ background: "var(--surface-subtle)", borderColor: "var(--border)" }}
                     >
                       <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-[var(--accent)]">
-                        <span>📖 Explanation:</span>
+                        <span>Explanation:</span>
                       </div>
                       <p className="text-xs leading-relaxed text-zinc-700 dark:text-zinc-300">
                         {currentQuestion.explanation}
@@ -1803,8 +1800,10 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
               >
                 {/* Celebration Icon & Title */}
                 <div className="text-center space-y-2">
-                  <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-3xl shadow-inner border bg-[var(--surface-subtle)] border-[var(--border)]">
-                    {summaryStats.accuracy >= 70 ? "🏆" : "📊"}
+                  <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center shadow-inner border bg-[var(--surface-subtle)] border-[var(--border)]">
+                    <svg className="w-8 h-8 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   </div>
                   <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
                     Quiz Completed!
@@ -1979,8 +1978,10 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
             }}
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 text-lg">
-                ⚠️
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
               </div>
               <div>
                 <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">

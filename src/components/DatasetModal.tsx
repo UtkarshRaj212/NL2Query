@@ -29,32 +29,32 @@ interface DatasetModalProps {
 
 const PROMPT_SUGGESTIONS = [
   {
-    label: "🛒 E-Commerce Store",
+    label: "E-Commerce Store",
     prompt:
       "Create an e-commerce platform with customers, products, categories, orders, and order items with realistic sample prices, stock levels, and order dates.",
   },
   {
-    label: "📚 Bookstore & Reviews",
+    label: "Bookstore & Reviews",
     prompt:
       "Create an online bookstore database with authors, books, genres, and reader reviews with ratings from 1 to 5.",
   },
   {
-    label: "🏥 Hospital Clinic",
+    label: "Hospital Clinic",
     prompt:
       "Create a healthcare clinic database with doctors, patients, medical departments, and patient appointment records.",
   },
   {
-    label: "🎓 University Portal",
+    label: "University Portal",
     prompt:
       "Create a university database with students, courses, instructors, and semester enrollments with letter grades and credit hours.",
   },
   {
-    label: "✈️ Airline Flights",
+    label: "Airline Flights",
     prompt:
       "Create a flight reservation database with airports, scheduled flights, passengers, and flight ticket bookings.",
   },
   {
-    label: "💳 Banking Ledger",
+    label: "Banking Ledger",
     prompt:
       "Create a personal banking ledger with bank accounts, customers, transactions, and cash balances.",
   },
@@ -581,7 +581,6 @@ export function DatasetModal({
                     : "none",
               }}
             >
-              <span className="text-amber-400">✨</span>
               <span>Prompt</span>
             </button>
           </div>
@@ -611,7 +610,7 @@ export function DatasetModal({
                   />
                   {dbNameValidation && !dbNameValidation.isValid && (
                     <div className="mt-1 flex items-center justify-between text-[11px] text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
-                      <span>⚠️ {dbNameValidation.error}</span>
+                      <span>{dbNameValidation.error}</span>
                       {dbNameValidation.suggestion && (
                         <button
                           type="button"
@@ -709,7 +708,7 @@ export function DatasetModal({
                     </div>
                     {newTableValidation && !newTableValidation.isValid && (
                       <div className="mt-1 flex items-center justify-between text-[11px] text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
-                        <span>⚠️ {newTableValidation.error}</span>
+                        <span>{newTableValidation.error}</span>
                         {newTableValidation.suggestion && (
                           <button
                             type="button"
@@ -822,7 +821,7 @@ export function DatasetModal({
 
                         {editingTableIdx === tIdx && renameTableValidation && !renameTableValidation.isValid && (
                           <div className="text-[11px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                            ⚠️ {renameTableValidation.error}
+                            {renameTableValidation.error}
                           </div>
                         )}
 
@@ -958,7 +957,7 @@ export function DatasetModal({
                                 </div>
                                 {!colVal.isValid && (
                                   <div className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                                    ⚠️ {colVal.error}
+                                    {colVal.error}
                                   </div>
                                 )}
                               </div>
@@ -1036,7 +1035,6 @@ export function DatasetModal({
                       className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
                       style={{ color: "var(--foreground)" }}
                     >
-                      <span className="text-amber-400">✨</span>
                       <span>Generate Dataset &amp; Tables with AI Prompt</span>
                     </h3>
                     <p className="text-xs opacity-75 mt-0.5" style={{ color: "var(--muted)" }}>
@@ -1128,15 +1126,9 @@ export function DatasetModal({
                         <span>Generating Tables...</span>
                       </>
                     ) : hasGenerated ? (
-                      <>
-                        <span>🔄</span>
-                        <span>Regenerate Dataset</span>
-                      </>
+                      <span>Regenerate Dataset</span>
                     ) : (
-                      <>
-                        <span>✨</span>
-                        <span>Generate Dataset &amp; Tables</span>
-                      </>
+                      <span>Generate Dataset &amp; Tables</span>
                     )}
                   </button>
                 </div>
@@ -1186,7 +1178,6 @@ export function DatasetModal({
                       }}
                       title="Switch to manual editor to customize tables, columns, and rows"
                     >
-                      <span>✏️</span>
                       <span>Edit Manually</span>
                     </button>
                   </div>
@@ -1245,7 +1236,6 @@ export function DatasetModal({
                         >
                           <div className="flex items-center justify-between font-mono font-bold text-xs mb-2">
                             <span className="flex items-center gap-1.5">
-                              <span className="text-cyan-400">📄</span>
                               <span style={{ color: "var(--foreground)" }}>{t.name}</span>
                             </span>
                             <span className="text-[10px] font-normal opacity-70" style={{ color: "var(--muted)" }}>
@@ -1412,7 +1402,6 @@ export function DatasetModal({
                 borderColor: "var(--accent)",
               }}
             >
-              <span>✨</span>
               <span>Generate Dataset</span>
             </button>
           ) : (

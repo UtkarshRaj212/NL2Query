@@ -409,11 +409,15 @@ export function DownloadView({
                 </span>
               </div>
               <div className={`flex items-center gap-2 text-xs sm:text-sm font-medium ${textBody}`}>
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓</span>
+                <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
                 <span>Chen ER Diagram will be embedded in PDF and DOCX automatically</span>
               </div>
               <div className={`flex items-center gap-2 text-xs sm:text-sm font-medium ${textBody}`}>
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓</span>
+                <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
                 <span>Zero algebraic Greek symbol glitches; clean enterprise formatting</span>
               </div>
             </div>

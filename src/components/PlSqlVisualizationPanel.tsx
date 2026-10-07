@@ -6,6 +6,7 @@ import type { PipelineStep, Row } from "@/lib/sqlEngine";
 import type { Tab, ThemeId } from "./nlSqlTypes";
 import { ChenERDiagram } from "./ChenERDiagram";
 import { analyzePlSqlScript } from "@/lib/plsqlAnalyzer";
+import { TableInsightsModal } from "./TableInsightsModal";
 
 interface PlSqlVisualizationPanelProps {
   tab: Tab;
@@ -27,6 +28,7 @@ interface PlSqlVisualizationPanelProps {
   dark: boolean;
   theme?: ThemeId;
   hasExecuted?: boolean;
+  onApplyQuery?: (query: string) => void;
 }
 
 function getPlSqlStageBadgeClass(stage: string, isDark = true): string {
@@ -141,9 +143,12 @@ export function PlSqlVisualizationPanel({
   dark,
   theme = "slate",
   hasExecuted = false,
+  onApplyQuery,
 }: PlSqlVisualizationPanelProps) {
   const [outputViewMode, setOutputViewMode] = useState<"both" | "terminal" | "table">("both");
   const [copiedConsole, setCopiedConsole] = useState(false);
+  const [isInsightsOpen, setIsInsightsOpen] = useState(false);
+  const [insightsTableName, setInsightsTableName] = useState<string>("");
 
   const analysis = useMemo(
     () => analyzePlSqlScript(plsql, schema, steps, finalRows, dbmsOutput),
@@ -209,7 +214,6 @@ export function PlSqlVisualizationPanel({
                   : "text-black bg-orange-50 border-orange-300 hover:bg-orange-100"
               }`}
             >
-              <span>📥</span>
               <span>CSV</span>
             </button>
             <button
@@ -221,7 +225,6 @@ export function PlSqlVisualizationPanel({
                   : "text-black bg-orange-50 border-orange-300 hover:bg-orange-100"
               }`}
             >
-              <span>📄</span>
               <span>Report</span>
             </button>
           </div>
@@ -463,7 +466,6 @@ export function PlSqlVisualizationPanel({
                     }`}
                     title="Copy console output to clipboard"
                   >
-                    <span>{copiedConsole ? "✓" : "📋"}</span>
                     <span>{copiedConsole ? "Copied!" : "Copy"}</span>
                   </button>
                 )}
@@ -479,7 +481,6 @@ export function PlSqlVisualizationPanel({
               >
                 {dbmsOutput.length === 0 ? (
                   <div className="py-8 flex flex-col items-center justify-center text-zinc-400 gap-2 font-sans">
-                    <span className="text-2xl">⚡</span>
                     <p className="text-xs">No DBMS_OUTPUT messages captured yet. Click &quot;Execute PL/SQL&quot; to run.</p>
                   </div>
                 ) : (
@@ -524,7 +525,6 @@ export function PlSqlVisualizationPanel({
                 style={{ borderColor: "var(--border)" }}
               >
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm">📊</span>
                   <span className={`text-xs font-mono font-semibold ${dark ? "text-zinc-300" : "text-black font-bold"}`}>
                     Output / Table Records
                   </span>
@@ -555,7 +555,6 @@ export function PlSqlVisualizationPanel({
                     }`}
                     title="Export table records as CSV"
                   >
-                    <span>📥</span>
                     <span>Export CSV</span>
                   </button>
                 )}
@@ -620,26 +619,47 @@ export function PlSqlVisualizationPanel({
             {schema.map((t) => (
               <div
                 key={t.name}
-                className="rounded-xl border p-3.5 flex flex-col gap-2 shadow-xs"
+                className="rounded-xl border p-3.5 flex flex-col justify-between shadow-xs overflow-hidden"
                 style={{ background: "var(--surface-subtle)", borderColor: "var(--border)" }}
               >
-                <div className={`flex items-center justify-between border-b pb-2 ${dark ? "border-zinc-800" : "border-slate-300"}`}>
-                  <span className={`font-bold text-sm font-mono ${dark ? "text-orange-400" : "text-black font-bold"}`}>
-                    {t.name}
-                  </span>
-                  <span className={`text-xs ${dark ? "text-zinc-400" : "text-black font-semibold"}`}>
-                    {t.rows.length} rows
-                  </span>
+                <div>
+                  <div className={`flex items-center justify-between border-b pb-2 ${dark ? "border-zinc-800" : "border-slate-300"}`}>
+                    <span className={`font-bold text-sm font-mono ${dark ? "text-orange-400" : "text-black font-bold"}`}>
+                      {t.name}
+                    </span>
+                    <span className={`text-xs ${dark ? "text-zinc-400" : "text-black font-semibold"}`}>
+                      {t.columns.length} cols
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1 text-xs mt-2 overflow-x-auto scrollbar-thin pb-1">
+                    {t.columns.map((c) => (
+                      <div key={c.name} className={`flex items-center justify-between py-0.5 font-mono ${dark ? "text-zinc-300" : "text-black font-medium"}`}>
+                        <span>{c.name}</span>
+                        <span className={`text-[10px] font-mono ${dark ? "text-zinc-500" : "text-black font-semibold opacity-85"}`}>
+                          {c.type} {c.pk ? "[PK]" : ""} {c.fk ? `-> ${c.fk.table}.${c.fk.column}` : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1 text-xs">
-                  {t.columns.map((c) => (
-                    <div key={c.name} className={`flex items-center justify-between py-0.5 font-mono ${dark ? "text-zinc-300" : "text-black font-medium"}`}>
-                      <span>{c.name}</span>
-                      <span className={`text-[10px] font-mono ${dark ? "text-zinc-500" : "text-black font-semibold opacity-85"}`}>
-                        {c.type} {c.pk ? "[PK]" : ""} {c.fk ? `-> ${c.fk.table}` : ""}
-                      </span>
-                    </div>
-                  ))}
+
+                <div
+                  className="flex items-center justify-between text-xs font-medium opacity-90 mt-3 pt-1.5 border-t gap-2"
+                  style={{ color: "var(--foreground)", borderColor: "var(--border)" }}
+                >
+                  <span>{t.rows.length} sample rows</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInsightsTableName(t.name);
+                      setIsInsightsOpen(true);
+                    }}
+                    className="text-xs font-semibold text-white hover:text-white/80 transition-colors inline-flex items-center gap-1 cursor-pointer group hover:underline"
+                    title={`View statistics & insights for ${t.name}`}
+                  >
+                    <span className="text-white">View Insights</span>
+                    <span className="inline-block transition-transform group-hover:translate-x-0.5 text-white">→</span>
+                  </button>
                 </div>
               </div>
             ))}
@@ -654,6 +674,14 @@ export function PlSqlVisualizationPanel({
             </h3>
             <ChenERDiagram schema={schema} theme={theme} />
           </div>
+
+          <TableInsightsModal
+            isOpen={isInsightsOpen}
+            onClose={() => setIsInsightsOpen(false)}
+            schema={schema}
+            initialTableName={insightsTableName}
+            onApplyQuery={onApplyQuery}
+          />
         </div>
       )}
 
@@ -667,7 +695,6 @@ export function PlSqlVisualizationPanel({
           <div className={`border-b pb-4 ${dark ? "border-zinc-800" : "border-slate-200"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-orange-500 text-lg">✦</span>
                 <h3 className={`text-base font-bold ${dark ? "text-zinc-100" : "text-slate-900"}`}>
                   Procedural Logic &amp; Operational Breakdown
                 </h3>
@@ -687,27 +714,27 @@ export function PlSqlVisualizationPanel({
               <span className={`text-[11px] font-medium px-2 py-1 rounded-md border ${
                 dark ? "bg-zinc-900/80 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
               }`}>
-                🗄️ Tables: <strong className={dark ? "text-orange-400" : "text-orange-700"}>{analysis.procedural.tablesUsed.length}</strong>
+                Tables: <strong className={dark ? "text-orange-400" : "text-orange-700"}>{analysis.procedural.tablesUsed.length}</strong>
               </span>
               <span className={`text-[11px] font-medium px-2 py-1 rounded-md border ${
                 dark ? "bg-zinc-900/80 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
               }`}>
-                📦 Variables: <strong className={dark ? "text-indigo-400" : "text-indigo-700"}>{analysis.procedural.variables.length}</strong>
+                Variables: <strong className={dark ? "text-indigo-400" : "text-indigo-700"}>{analysis.procedural.variables.length}</strong>
               </span>
               <span className={`text-[11px] font-medium px-2 py-1 rounded-md border ${
                 dark ? "bg-zinc-900/80 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
               }`}>
-                ⚡ Cursors: <strong className={dark ? "text-sky-400" : "text-sky-700"}>{analysis.procedural.cursors.length}</strong>
+                Cursors: <strong className={dark ? "text-sky-400" : "text-sky-700"}>{analysis.procedural.cursors.length}</strong>
               </span>
               <span className={`text-[11px] font-medium px-2 py-1 rounded-md border ${
                 dark ? "bg-zinc-900/80 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
               }`}>
-                🔄 Steps: <strong className={dark ? "text-amber-400" : "text-amber-700"}>{analysis.procedural.workflowSteps.length}</strong>
+                Steps: <strong className={dark ? "text-amber-400" : "text-amber-700"}>{analysis.procedural.workflowSteps.length}</strong>
               </span>
               <span className={`text-[11px] font-medium px-2 py-1 rounded-md border ${
                 dark ? "bg-zinc-900/80 text-zinc-300 border-zinc-800" : "bg-slate-100 text-slate-800 border-slate-300 font-semibold"
               }`}>
-                📟 DBMS Output: <strong className={dark ? "text-emerald-400" : "text-emerald-700"}>{analysis.procedural.outputMessagesCount} lines</strong>
+                DBMS Output: <strong className={dark ? "text-emerald-400" : "text-emerald-700"}>{analysis.procedural.outputMessagesCount} lines</strong>
               </span>
             </div>
           </div>
@@ -744,7 +771,6 @@ export function PlSqlVisualizationPanel({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm">📁</span>
                         <span className={`font-mono text-xs font-bold ${dark ? "text-zinc-100" : "text-slate-900"}`}>
                           {tbl.tableName}
                         </span>
@@ -820,7 +846,6 @@ export function PlSqlVisualizationPanel({
               }`}>
                 <div className="flex items-center justify-between">
                   <span className={`text-xs font-bold flex items-center gap-1.5 ${dark ? "text-indigo-400" : "text-indigo-900 font-bold"}`}>
-                    <span>📦</span>
                     <span>Declared Variables ({analysis.procedural.variables.length})</span>
                   </span>
                   <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
@@ -875,7 +900,6 @@ export function PlSqlVisualizationPanel({
               }`}>
                 <div className="flex items-center justify-between">
                   <span className={`text-xs font-bold flex items-center gap-1.5 ${dark ? "text-sky-400" : "text-sky-900 font-bold"}`}>
-                    <span>⚡</span>
                     <span>Cursor Work Areas ({analysis.procedural.cursors.length})</span>
                   </span>
                   <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
@@ -1073,7 +1097,6 @@ export function PlSqlVisualizationPanel({
           <div className={`border-b pb-4 ${dark ? "border-zinc-800" : "border-slate-200"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-orange-500 text-lg">⚡</span>
                 <h3 className={`text-base font-bold ${dark ? "text-zinc-100" : "text-slate-900"}`}>
                   PL/SQL Theory &amp; Command Mechanics
                 </h3>
@@ -1252,7 +1275,6 @@ export function PlSqlVisualizationPanel({
                 <h5 className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 ${
                   dark ? "text-indigo-400" : "text-indigo-900 font-bold"
                 }`}>
-                  <span>🧠</span>
                   <span>PGA Allocation</span>
                 </h5>
                 <p className="text-xs leading-relaxed">
@@ -1266,7 +1288,6 @@ export function PlSqlVisualizationPanel({
                 <h5 className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 ${
                   dark ? "text-sky-400" : "text-sky-900 font-bold"
                 }`}>
-                  <span>📁</span>
                   <span>Private SQL Area</span>
                 </h5>
                 <p className="text-xs leading-relaxed">
@@ -1280,7 +1301,6 @@ export function PlSqlVisualizationPanel({
                 <h5 className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 ${
                   dark ? "text-orange-400" : "text-orange-900 font-bold"
                 }`}>
-                  <span>📟</span>
                   <span>DBMS_OUTPUT Buffer</span>
                 </h5>
                 <p className="text-xs leading-relaxed">

@@ -412,7 +412,7 @@ export function ImportDatasetModal({
                   />
                   {dbNameValidation && !dbNameValidation.isValid && (
                     <div className="mt-1 flex items-center justify-between text-[11px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                      <span>⚠️ {dbNameValidation.error}</span>
+                      <span>{dbNameValidation.error}</span>
                       {dbNameValidation.suggestion && (
                         <button
                           type="button"

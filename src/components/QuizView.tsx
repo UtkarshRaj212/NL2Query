@@ -763,8 +763,10 @@ export function QuizView({ mode, onBackToWorkspace }: QuizViewProps) {
                   borderColor: "var(--border)",
                 }}
               >
-                <div className="w-12 h-12 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-xl">
-                  🔍
+                <div className="w-12 h-12 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
                 </div>
                 <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
                   No questions match your filter
@@ -803,7 +805,9 @@ export function QuizView({ mode, onBackToWorkspace }: QuizViewProps) {
                       <div className="flex items-center gap-3 my-2">
                         <div className="h-px bg-zinc-200 dark:bg-zinc-800 flex-1" />
                         <span className="text-xs font-semibold px-3 py-1 rounded-md border bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 flex items-center gap-1.5 shadow-2xs">
-                          <span>✓</span>
+                          <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
                           <span>Attempted Questions ({stats.attempted})</span>
                         </span>
                         <div className="h-px bg-zinc-200 dark:bg-zinc-800 flex-1" />
@@ -1345,7 +1349,7 @@ function QuestionCard({
                   borderColor: "var(--border)",
                 }}
               >
-                {showHint ? "Hide Hint" : "💡 Show Hint"}
+                {showHint ? "Hide Hint" : "Show Hint"}
               </button>
             )}
           </div>
@@ -1371,7 +1375,6 @@ function QuestionCard({
         {/* Hint Accordion */}
         {showHint && question.hint && (
           <div className="p-3.5 rounded-xl border text-xs leading-relaxed flex items-start gap-2.5 bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-200">
-            <span className="text-sm">💡</span>
             <div>
               <strong className="font-semibold">Hint: </strong>
               <span>{question.hint}</span>
@@ -1390,15 +1393,9 @@ function QuestionCard({
           >
             <div className="flex items-center gap-2 font-bold">
               {attempt.isCorrect ? (
-                <>
-                  <span className="text-base">🎉</span>
-                  <span>Correct!</span>
-                </>
+                <span>Correct!</span>
               ) : (
-                <>
-                  <span className="text-base">❌</span>
-                  <span>Incorrect</span>
-                </>
+                <span>Incorrect</span>
               )}
             </div>
             <p className="font-sans leading-relaxed text-xs opacity-90">
@@ -1451,7 +1448,7 @@ function QuestionCard({
               className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider"
               style={{ color: "var(--accent)" }}
             >
-              <span>📖 Explanation:</span>
+              <span>Explanation:</span>
             </div>
             <p className="text-xs leading-relaxed text-zinc-700 dark:text-zinc-300">
               {question.explanation}

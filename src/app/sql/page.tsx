@@ -858,6 +858,7 @@ export default function Home() {
               theme={theme}
               explanation={explanation}
               hasExecuted={hasExecuted}
+              onApplyQuery={(query) => setSql(query)}
             />
           </div>
         </main>

@@ -48,7 +48,6 @@ function PlSqlLearnSubcard({
             color: highlight ? "var(--accent)" : "var(--foreground)",
           }}
         >
-          {highlight && <span className="text-amber-500">⚡</span>}
           {title}
         </span>
         <div

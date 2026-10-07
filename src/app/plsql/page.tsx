@@ -828,6 +828,7 @@ export default function PlSqlPage() {
               dark={isDark}
               theme={theme}
               hasExecuted={hasExecuted}
+              onApplyQuery={(q) => setPlsql(q)}
             />
           </div>
         </main>

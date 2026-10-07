@@ -573,7 +573,7 @@ export function Theory({
 
                 {stagePart.optimizationRule && (
                   <div className="p-2 rounded-lg bg-[var(--panel)] border text-[11px] flex items-center gap-1.5" style={{ borderColor: "var(--border)" }}>
-                    <span className="font-bold text-[var(--accent)] shrink-0">💡 Optimization:</span>
+                    <span className="font-bold text-[var(--accent)] shrink-0">Optimization:</span>
                     <span className="opacity-90">{stagePart.optimizationRule}</span>
                   </div>
                 )}

@@ -628,7 +628,7 @@ export function ExamView({
                           : "bg-rose-500/20 text-rose-400 border-rose-500/40"
                           }`}
                       >
-                        {status.isCorrect ? "✓ Solved" : "✗ Attempted"}
+                        {status.isCorrect ? "Solved" : "Attempted"}
                       </span>
                     )}
                   </div>
@@ -742,7 +742,7 @@ export function ExamView({
                                 className={`text-[11px] font-bold ${status.isCorrect ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"
                                   }`}
                               >
-                                {status.isCorrect ? "✓ Correct Choice!" : "✗ Incorrect Choice"}
+                                {status.isCorrect ? "Correct Choice!" : "Incorrect Choice"}
                               </span>
                             )}
                           </span>
@@ -785,7 +785,7 @@ export function ExamView({
                                   <span className="text-xs sm:text-sm leading-relaxed">{opt.text}</span>
                                   {isCorrect && (
                                     <span className="ml-auto text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 shrink-0">
-                                      ✓ Correct
+                                      Correct
                                     </span>
                                   )}
                                 </button>
@@ -847,11 +847,11 @@ export function ExamView({
                             <div className="mt-1 text-xs font-mono flex items-center gap-2">
                               {status.isCorrect ? (
                                 <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
-                                  ✓ Correct! Your answer matches the official exam key.
+                                  Correct! Your answer matches the official exam key.
                                 </span>
                               ) : (
                                 <span className="text-rose-700 dark:text-rose-400 font-bold flex items-center gap-1">
-                                  ✗ Incorrect. Try calculating again or expand the solution below.
+                                  Incorrect. Try calculating again or expand the solution below.
                                 </span>
                               )}
                             </div>
@@ -911,7 +911,9 @@ export function ExamView({
                         <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-emerald-500/20">
                           <div className="flex items-center gap-2">
                             <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-xs shrink-0">
-                              ✓
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                              </svg>
                             </div>
                             <div>
                               <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold block">
@@ -989,7 +991,6 @@ export function ExamView({
                             borderColor: "rgba(245, 158, 11, 0.3)",
                           }}
                         >
-                          <span className="text-amber-500 dark:text-amber-400 text-sm shrink-0">💡</span>
                           <div className="text-xs leading-relaxed">
                             <strong className="text-amber-700 dark:text-amber-400 font-semibold">Key Exam Takeaway: </strong>
                             <span className="text-[var(--foreground)]">{q.solution.keyTakeaway}</span>

@@ -6,6 +6,7 @@ import type { QueryExplanation } from "@/lib/queryExplainer";
 import { Theory } from "./Theory";
 import { ChenERDiagram } from "./ChenERDiagram";
 import { QueryExplanationView } from "./QueryExplanationView";
+import { TableInsightsModal } from "./TableInsightsModal";
 
 function getStageBadgeClass(stage: string, theme: ThemeId = "slate"): string {
   /*
@@ -92,6 +93,7 @@ interface VisualizationPanelProps {
   theme?: ThemeId;
   explanation?: QueryExplanation | null;
   hasExecuted?: boolean;
+  onApplyQuery?: (query: string) => void;
 }
 
 export function VisualizationPanel({
@@ -114,6 +116,7 @@ export function VisualizationPanel({
   theme = "slate",
   explanation,
   hasExecuted = false,
+  onApplyQuery,
 }: VisualizationPanelProps) {
   return (
     <section
@@ -172,7 +175,13 @@ export function VisualizationPanel({
         />
       )}
       {tab === "schema" && (
-        <SchemaView schema={schema} source={mermaidSource} dark={dark} theme={theme} />
+        <SchemaView
+          schema={schema}
+          source={mermaidSource}
+          dark={dark}
+          theme={theme}
+          onApplyQuery={onApplyQuery}
+        />
       )}
       {tab === "explanation" && (
         <QueryExplanationView
@@ -383,12 +392,16 @@ function SchemaView({
   source,
   dark,
   theme = "slate",
+  onApplyQuery,
 }: {
   schema: Table[];
   source: string;
   dark: boolean;
   theme?: ThemeId;
+  onApplyQuery?: (query: string) => void;
 }) {
+  const [isInsightsOpen, setIsInsightsOpen] = useState(false);
+  const [insightsTableName, setInsightsTableName] = useState<string>("");
   return (
     <div
       className="panel p-4 overflow-auto"
@@ -460,12 +473,24 @@ function SchemaView({
                 </table>
               </div>
             </div>
-            <p
-              className="text-xs font-medium opacity-85 mt-3 pt-1 border-t"
+            <div
+              className="flex items-center justify-between text-xs font-medium opacity-90 mt-3 pt-1.5 border-t gap-2"
               style={{ color: "var(--foreground)", borderColor: "var(--border)" }}
             >
-              {table.rows.length} sample rows
-            </p>
+              <span>{table.rows.length} sample rows</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setInsightsTableName(table.name);
+                  setIsInsightsOpen(true);
+                }}
+                className="text-xs font-semibold text-white hover:text-white/80 transition-colors inline-flex items-center gap-1 cursor-pointer group hover:underline"
+                title={`View statistics & insights for ${table.name}`}
+              >
+                <span className="text-white">View Insights</span>
+                <span className="inline-block transition-transform group-hover:translate-x-0.5 text-white">→</span>
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -492,6 +517,15 @@ function SchemaView({
           </pre>
         </details>
       </div>
+
+      {/* Table Insights Modal Dialog (Fixed max width/height - does not cover entire screen) */}
+      <TableInsightsModal
+        isOpen={isInsightsOpen}
+        onClose={() => setIsInsightsOpen(false)}
+        schema={schema}
+        initialTableName={insightsTableName}
+        onApplyQuery={onApplyQuery}
+      />
     </div>
   );
 }
@@ -682,7 +716,7 @@ function JoinAnimationVisualizer({
                   : "opacity-60 hover:opacity-100"
               }`}
             >
-              🎬 Animation
+              Animation
             </button>
             <button
               type="button"
@@ -693,7 +727,7 @@ function JoinAnimationVisualizer({
                   : "opacity-60 hover:opacity-100"
               }`}
             >
-              📋 Table
+              Table
             </button>
           </div>
         </div>
@@ -715,7 +749,7 @@ function JoinAnimationVisualizer({
             >
               <div className="flex items-center justify-between mb-2 pb-1.5 border-b" style={{ borderColor: "var(--border)" }}>
                 <span className="font-mono font-bold text-xs flex items-center gap-1.5 text-sky-400">
-                  <span>🗃️</span> {details.leftTable}
+                  {details.leftTable}
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/30 text-sky-300 font-mono">
                   Key: {details.leftCol}
@@ -785,7 +819,7 @@ function JoinAnimationVisualizer({
             >
               <div className="flex items-center justify-between mb-2 pb-1.5 border-b" style={{ borderColor: "var(--border)" }}>
                 <span className="font-mono font-bold text-xs flex items-center gap-1.5 text-emerald-400">
-                  <span>🗃️</span> {details.rightTable}
+                  {details.rightTable}
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-mono">
                   Key: {details.rightCol}
@@ -838,7 +872,7 @@ function JoinAnimationVisualizer({
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-amber-300">
-                <span>✨</span> Fused Tuple #{activeIdx + 1} (Combined into Working Set)
+                Fused Tuple #{activeIdx + 1} (Combined into Working Set)
               </span>
               <span className="text-[11px] font-mono opacity-75 text-zinc-300">
                 Condition: {details.leftCol} ({currentPair.leftVal}) == {details.rightCol} ({currentPair.rightVal})

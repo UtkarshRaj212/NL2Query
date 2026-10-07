@@ -111,7 +111,7 @@ export function RenameProjectModal({
             />
             {validation && !validation.isValid && (
               <div className="mt-1.5 flex items-center justify-between text-[11px] text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
-                <span>⚠️ {validation.error}</span>
+                <span>{validation.error}</span>
                 {validation.suggestion && (
                   <button
                     type="button"
