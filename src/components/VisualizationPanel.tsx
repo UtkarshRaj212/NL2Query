@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import type { Table } from "@/lib/schema";
 import type { PipelineStep, Row } from "@/lib/sqlEngine";
 import type { Tab, ThemeId } from "./nlSqlTypes";
@@ -305,7 +305,11 @@ function ResultView({
           <p className="text-xs opacity-75 mb-3" style={{ color: "var(--foreground)" }}>
             {current.detail}
           </p>
-          <StepTable step={current} />
+          {current.stage === "JOIN" && current.joinDetails && current.joinDetails.matchedPairs.length > 0 ? (
+            <JoinAnimationVisualizer step={current} theme={theme} />
+          ) : (
+            <StepTable step={current} />
+          )}
         </div>
       )}
 
@@ -539,6 +543,393 @@ function MermaidDiagram({ source, dark }: { source: string; dark: boolean }) {
       }}
       aria-label="Entity relationship diagram"
     />
+  );
+}
+
+function JoinAnimationVisualizer({
+  step,
+  theme = "slate",
+}: {
+  step: PipelineStep;
+  theme?: ThemeId;
+}) {
+  const details = step.joinDetails;
+  const pairs = details?.matchedPairs ?? [];
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [speed, setSpeed] = useState<"normal" | "fast" | "slow">("normal");
+  const [viewMode, setViewMode] = useState<"visual" | "table">("visual");
+
+  const intervalMs = speed === "fast" ? 900 : speed === "slow" ? 2500 : 1600;
+
+  useEffect(() => {
+    if (!isPlaying || pairs.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveIdx((prev) => (prev + 1) % pairs.length);
+    }, intervalMs);
+    return () => clearInterval(timer);
+  }, [isPlaying, pairs.length, intervalMs]);
+
+  if (!details || pairs.length === 0) {
+    return <StepTable step={step} />;
+  }
+
+  const currentPair = pairs[activeIdx] ?? pairs[0];
+  const accumulatedRows = pairs.slice(0, activeIdx + 1).map((p) => p.mergedRow);
+  const allCols = step.columns.length > 0 ? step.columns : Object.keys(pairs[0]?.mergedRow ?? {});
+
+  return (
+    <div className="space-y-4">
+      {/* Top Controls Bar */}
+      <div
+        className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl border text-xs"
+        style={{
+          background: "var(--surface-subtle)",
+          borderColor: "var(--border)",
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className="px-2 py-0.5 rounded-full font-mono text-[11px] font-bold border"
+            style={{
+              background: "rgba(16, 185, 129, 0.15)",
+              borderColor: "rgba(16, 185, 129, 0.4)",
+              color: "#10b981",
+            }}
+          >
+            {details.joinType} JOIN
+          </span>
+          <span className="font-medium text-xs opacity-90" style={{ color: "var(--foreground)" }}>
+            Combining Row <span className="font-mono font-bold text-sky-400">{activeIdx + 1}</span> of{" "}
+            <span className="font-mono font-bold">{pairs.length}</span> matches
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Stepper Buttons */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsPlaying(false);
+              setActiveIdx((prev) => (prev - 1 + pairs.length) % pairs.length);
+            }}
+            className="p-1 px-2 rounded-md border text-xs font-semibold hover:opacity-80 transition-opacity cursor-pointer"
+            style={{
+              background: "var(--panel)",
+              borderColor: "var(--border)",
+              color: "var(--foreground)",
+            }}
+            title="Previous match"
+          >
+            ◀
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPlaying((p) => !p)}
+            className="px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1 border transition-opacity hover:opacity-90 cursor-pointer"
+            style={{
+              background: isPlaying ? "rgba(239, 68, 68, 0.2)" : "rgba(16, 185, 129, 0.2)",
+              borderColor: isPlaying ? "rgba(239, 68, 68, 0.4)" : "rgba(16, 185, 129, 0.4)",
+              color: isPlaying ? "#f87171" : "#34d399",
+            }}
+          >
+            {isPlaying ? "⏸ Pause" : "▶ Play"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsPlaying(false);
+              setActiveIdx((prev) => (prev + 1) % pairs.length);
+            }}
+            className="p-1 px-2 rounded-md border text-xs font-semibold hover:opacity-80 transition-opacity cursor-pointer"
+            style={{
+              background: "var(--panel)",
+              borderColor: "var(--border)",
+              color: "var(--foreground)",
+            }}
+            title="Next match"
+          >
+            ▶
+          </button>
+
+          {/* Speed Toggle */}
+          <button
+            type="button"
+            onClick={() =>
+              setSpeed((s) => (s === "normal" ? "fast" : s === "fast" ? "slow" : "normal"))
+            }
+            className="px-2 py-1 rounded-md border text-[11px] font-mono hover:opacity-80 transition-opacity cursor-pointer ml-1"
+            style={{
+              background: "var(--panel)",
+              borderColor: "var(--border)",
+              color: "var(--muted)",
+            }}
+            title="Animation Speed"
+          >
+            {speed === "fast" ? "2x Fast" : speed === "slow" ? "0.5x Slow" : "1x Speed"}
+          </button>
+
+          {/* View Mode Toggle */}
+          <div className="flex border rounded-lg p-0.5 ml-2" style={{ borderColor: "var(--border)" }}>
+            <button
+              type="button"
+              onClick={() => setViewMode("visual")}
+              className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all cursor-pointer ${
+                viewMode === "visual"
+                  ? "bg-sky-500/20 text-sky-400 font-bold"
+                  : "opacity-60 hover:opacity-100"
+              }`}
+            >
+              🎬 Animation
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all cursor-pointer ${
+                viewMode === "table"
+                  ? "bg-sky-500/20 text-sky-400 font-bold"
+                  : "opacity-60 hover:opacity-100"
+              }`}
+            >
+              📋 Table
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {viewMode === "table" ? (
+        <StepTable step={step} />
+      ) : (
+        <div className="space-y-4">
+          {/* Dual Source Table Stage with Key Comparator */}
+          <div className="grid grid-cols-1 lg:grid-cols-11 gap-2.5 items-stretch">
+            {/* Left Source Table Card */}
+            <div
+              className="lg:col-span-5 p-3 rounded-xl border flex flex-col justify-between transition-all shadow-xs"
+              style={{
+                background: "var(--surface-subtle)",
+                borderColor: "rgba(14, 165, 233, 0.4)",
+              }}
+            >
+              <div className="flex items-center justify-between mb-2 pb-1.5 border-b" style={{ borderColor: "var(--border)" }}>
+                <span className="font-mono font-bold text-xs flex items-center gap-1.5 text-sky-400">
+                  <span>🗃️</span> {details.leftTable}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/30 text-sky-300 font-mono">
+                  Key: {details.leftCol}
+                </span>
+              </div>
+
+              {/* Active Left Tuple Card */}
+              <div
+                className="p-2.5 rounded-lg border transition-all duration-300 relative overflow-hidden"
+                style={{
+                  background: "rgba(14, 165, 233, 0.08)",
+                  borderColor: "rgba(14, 165, 233, 0.6)",
+                }}
+              >
+                <div className="absolute top-1.5 right-1.5 text-[10px] font-mono text-sky-400 font-bold px-1.5 py-0.5 rounded bg-sky-500/20">
+                  KEY = {String(currentPair.leftVal)}
+                </div>
+                <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                  Active Tuple (Table A)
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 font-mono text-xs">
+                  {Object.entries(currentPair.leftRow)
+                    .filter(([k]) => !k.includes("."))
+                    .slice(0, 4)
+                    .map(([k, v]) => (
+                      <div
+                        key={k}
+                        className={`p-1 rounded ${
+                          k.toLowerCase() === details.leftCol.split(".").pop()?.toLowerCase()
+                            ? "bg-sky-500/25 border border-sky-400 text-sky-200 font-bold"
+                            : "bg-black/20 text-zinc-300"
+                        }`}
+                      >
+                        <span className="opacity-60 text-[10px] block">{k}:</span>
+                        <span className="truncate block">{String(v)}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Center Comparator & Match Badge */}
+            <div className="lg:col-span-1 flex flex-col items-center justify-center p-2 rounded-xl text-center self-center gap-1">
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs border shadow-sm animate-pulse"
+                style={{
+                  background: "rgba(16, 185, 129, 0.2)",
+                  borderColor: "rgba(16, 185, 129, 0.5)",
+                  color: "#34d399",
+                }}
+              >
+                =
+              </div>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold whitespace-nowrap">
+                MATCH!
+              </span>
+              <div className="text-zinc-500 text-xs">↓</div>
+            </div>
+
+            {/* Right Source Table Card */}
+            <div
+              className="lg:col-span-5 p-3 rounded-xl border flex flex-col justify-between transition-all shadow-xs"
+              style={{
+                background: "var(--surface-subtle)",
+                borderColor: "rgba(16, 185, 129, 0.4)",
+              }}
+            >
+              <div className="flex items-center justify-between mb-2 pb-1.5 border-b" style={{ borderColor: "var(--border)" }}>
+                <span className="font-mono font-bold text-xs flex items-center gap-1.5 text-emerald-400">
+                  <span>🗃️</span> {details.rightTable}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-mono">
+                  Key: {details.rightCol}
+                </span>
+              </div>
+
+              {/* Active Right Tuple Card */}
+              <div
+                className="p-2.5 rounded-lg border transition-all duration-300 relative overflow-hidden"
+                style={{
+                  background: "rgba(16, 185, 129, 0.08)",
+                  borderColor: "rgba(16, 185, 129, 0.6)",
+                }}
+              >
+                <div className="absolute top-1.5 right-1.5 text-[10px] font-mono text-emerald-400 font-bold px-1.5 py-0.5 rounded bg-emerald-500/20">
+                  KEY = {String(currentPair.rightVal)}
+                </div>
+                <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                  Active Tuple (Table B)
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 font-mono text-xs">
+                  {Object.entries(currentPair.rightRow)
+                    .filter(([k]) => !k.includes("."))
+                    .slice(0, 4)
+                    .map(([k, v]) => (
+                      <div
+                        key={k}
+                        className={`p-1 rounded ${
+                          k.toLowerCase() === details.rightCol.split(".").pop()?.toLowerCase()
+                            ? "bg-emerald-500/25 border border-emerald-400 text-emerald-200 font-bold"
+                            : "bg-black/20 text-zinc-300"
+                        }`}
+                      >
+                        <span className="opacity-60 text-[10px] block">{k}:</span>
+                        <span className="truncate block">{String(v)}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Fusion Chamber: Animated Row Combination */}
+          <div
+            className="p-3.5 rounded-xl border relative overflow-hidden transition-all shadow-md"
+            style={{
+              background: "linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)",
+              borderColor: "rgba(16, 185, 129, 0.5)",
+            }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-amber-300">
+                <span>✨</span> Fused Tuple #{activeIdx + 1} (Combined into Working Set)
+              </span>
+              <span className="text-[11px] font-mono opacity-75 text-zinc-300">
+                Condition: {details.leftCol} ({currentPair.leftVal}) == {details.rightCol} ({currentPair.rightVal})
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              {Object.entries(currentPair.mergedRow).map(([col, val]) => (
+                <div
+                  key={col}
+                  className="px-2.5 py-1 rounded-lg border font-mono text-xs flex items-center gap-1.5 transition-transform hover:scale-105"
+                  style={{
+                    background: "var(--panel)",
+                    borderColor: "var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                >
+                  <span className="text-[10px] text-zinc-400 font-semibold">{col}:</span>
+                  <span className="font-bold text-emerald-400">{String(val)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Live Accumulated Working Set Table */}
+          <div
+            className="p-3 rounded-xl border space-y-2"
+            style={{
+              background: "var(--surface-subtle)",
+              borderColor: "var(--border)",
+            }}
+          >
+            <div className="flex items-center justify-between text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+              <span>
+                Working Set Accumulator ({accumulatedRows.length} of {pairs.length} rows combined)
+              </span>
+              <span className="text-[11px] font-mono text-zinc-400">
+                Active row highlighted in emerald
+              </span>
+            </div>
+
+            <div className="overflow-x-auto max-h-48 scrollbar-thin">
+              <table className="text-xs w-full border-collapse">
+                <thead>
+                  <tr style={{ background: "var(--panel)" }}>
+                    <th className="px-2 py-1 border-b text-left font-mono font-bold text-zinc-400">
+                      #
+                    </th>
+                    {allCols.map((col) => (
+                      <th
+                        key={col}
+                        className="px-2.5 py-1 border-b text-left font-mono font-bold"
+                        style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
+                      >
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {accumulatedRows.map((row, idx) => {
+                    const isLatest = idx === activeIdx;
+                    return (
+                      <tr
+                        key={idx}
+                        className={`transition-colors font-mono ${
+                          isLatest
+                            ? "bg-emerald-500/20 font-bold text-emerald-200"
+                            : "hover:bg-zinc-800/40 opacity-90"
+                        }`}
+                      >
+                        <td className="px-2 py-1 border-b text-zinc-500 text-[10px]">{idx + 1}</td>
+                        {allCols.map((col) => (
+                          <td
+                            key={col}
+                            className="px-2.5 py-1 border-b"
+                            style={{ borderColor: "var(--border)" }}
+                          >
+                            {String(row[col] ?? "")}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

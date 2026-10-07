@@ -18,6 +18,28 @@ import {
 
 export type Row = Record<string, string | number>;
 
+export interface JoinMatchedPair {
+  leftRow: Row;
+  rightRow: Row;
+  mergedRow: Row;
+  leftKey: string;
+  rightKey: string;
+  leftVal: string | number;
+  rightVal: string | number;
+  match: boolean;
+}
+
+export interface JoinStepDetails {
+  leftTable: string;
+  rightTable: string;
+  leftCol: string;
+  rightCol: string;
+  joinType: string;
+  leftRows: Row[];
+  rightRows: Row[];
+  matchedPairs: JoinMatchedPair[];
+}
+
 export interface PipelineStep {
   stage: string;
   title: string;
@@ -25,6 +47,7 @@ export interface PipelineStep {
   rowCount: number;
   rows: Row[];
   columns: string[];
+  joinDetails?: JoinStepDetails;
 }
 
 export type StatementType = "DQL" | "DML" | "DDL";
@@ -347,14 +370,29 @@ function normalizeType(typeStr: string): ColumnType {
 
 function resolveCol(row: Row, col: string): string | number | undefined {
   if (col.includes(".")) {
+    // 1. Direct qualified lookup: e.g. "members.id" or "loans.member_id"
+    if (row[col] !== undefined) return row[col];
+    const lowerCol = col.toLowerCase();
+    const matchQualified = Object.keys(row).find((k) => k.toLowerCase() === lowerCol);
+    if (matchQualified && row[matchQualified] !== undefined) return row[matchQualified];
+
+    // 2. Fallback to bare column name if qualified name isn't directly present
     const [, c] = col.split(".");
-    return row[c] ?? row[col];
+    if (row[c] !== undefined) return row[c];
+    const lowerBare = c.toLowerCase();
+    const matchBare = Object.keys(row).find((k) => k.toLowerCase() === lowerBare);
+    return matchBare ? row[matchBare] : undefined;
   }
-  const exact = row[col];
-  if (exact !== undefined) return exact;
+
+  // Bare column lookup: e.g. "name" or "id"
+  if (row[col] !== undefined) return row[col];
   const lower = col.toLowerCase();
   const key = Object.keys(row).find((k) => k.toLowerCase() === lower);
-  return key ? row[key] : undefined;
+  if (key && row[key] !== undefined) return row[key];
+
+  // If bare column name matches a qualified key suffix (e.g. searching "title" matches "books.title")
+  const qualifiedSuffix = Object.keys(row).find((k) => k.toLowerCase().endsWith(`.${lower}`));
+  return qualifiedSuffix ? row[qualifiedSuffix] : undefined;
 }
 
 function colName(col: string): string {
@@ -1535,38 +1573,107 @@ function executeSelect(
   const baseTable = getTable(p.from, schema);
   if (!baseTable) throw new Error(`Table "${p.from}" not found.`);
 
-  let rows: Row[] = baseTable.rows.map((r) => ({ ...r }));
+  const prefixRow = (r: Row, tableName: string): Row => {
+    const row: Row = { ...r };
+    for (const [k, v] of Object.entries(r)) {
+      row[`${tableName}.${k}`] = v;
+      row[`${tableName.toLowerCase()}.${k.toLowerCase()}`] = v;
+    }
+    return row;
+  };
+
+  let rows: Row[] = baseTable.rows.map((r) => prefixRow(r, baseTable.name));
   push(
     "FROM",
     `Scan ${baseTable.name}`,
     `Read all ${rows.length} rows of table \`${baseTable.name}\` into the working set (full table scan, O(n)).`,
-    rows,
+    baseTable.rows.map((r) => ({ ...r })),
     baseTable.columns.map((c) => c.name),
   );
+
+  let currentLeftTableName = baseTable.name;
 
   for (const j of p.joins) {
     const jt = getTable(j.table, schema);
     if (!jt) throw new Error(`Joined table "${j.table}" not found.`);
     const out: Row[] = [];
+    const matchedPairs: JoinMatchedPair[] = [];
+
+    const priorLeftRows = rows.map((r) => {
+      const clean: Row = {};
+      for (const [k, v] of Object.entries(r)) {
+        if (!k.includes(".")) clean[k] = v;
+      }
+      return clean;
+    });
+
     for (const l of rows) {
       let matched = false;
       for (const r of jt.rows) {
-        const merged = { ...l, ...r };
-        if (OPS["="](resolveCol(merged, j.left), resolveCol(merged, j.right))) {
+        const prefixedR = prefixRow(r, jt.name);
+        const merged: Row = { ...l, ...prefixedR };
+
+        const leftVal = resolveCol(merged, j.left);
+        const rightVal = resolveCol(merged, j.right);
+        const isMatch = OPS["="](leftVal, rightVal);
+
+        if (isMatch) {
           out.push(merged);
           matched = true;
+
+          const cleanMerged: Row = {};
+          for (const [k, v] of Object.entries(merged)) {
+            if (!k.includes(".")) cleanMerged[k] = v;
+          }
+
+          matchedPairs.push({
+            leftRow: { ...l },
+            rightRow: { ...r },
+            mergedRow: cleanMerged,
+            leftKey: j.left,
+            rightKey: j.right,
+            leftVal: leftVal ?? "",
+            rightVal: rightVal ?? "",
+            match: true,
+          });
         }
       }
-      if (!matched && j.type === "LEFT") out.push({ ...l });
+      if (!matched && j.type === "LEFT") {
+        out.push({ ...l });
+      }
     }
     rows = out;
-    push(
-      "JOIN",
-      `${j.type} JOIN ${jt.name}`,
-      `Nested-loop ${j.type} JOIN on \`${j.left} = ${j.right}\`. Complexity O(n·m); produced ${rows.length} combined rows.`,
-      rows.slice(0, 50),
-      Object.keys(rows[0] ?? {}),
-    );
+
+    const cleanDisplayRows = rows.map((r) => {
+      const clean: Row = {};
+      for (const [k, v] of Object.entries(r)) {
+        if (!k.includes(".")) clean[k] = v;
+      }
+      return clean;
+    });
+
+    const displayCols = Object.keys(cleanDisplayRows[0] ?? {});
+
+    steps.push({
+      stage: "JOIN",
+      title: `${j.type} JOIN ${jt.name}`,
+      detail: `Nested-loop ${j.type} JOIN on \`${j.left} = ${j.right}\`. Evaluated ${rows.length} combined rows from ${currentLeftTableName} and ${jt.name}.`,
+      rowCount: rows.length,
+      rows: cleanDisplayRows.slice(0, 50),
+      columns: displayCols.length > 0 ? displayCols : Object.keys(rows[0] ?? {}),
+      joinDetails: {
+        leftTable: currentLeftTableName,
+        rightTable: jt.name,
+        leftCol: j.left,
+        rightCol: j.right,
+        joinType: j.type,
+        leftRows: priorLeftRows.slice(0, 50),
+        rightRows: jt.rows.slice(0, 50),
+        matchedPairs: matchedPairs.slice(0, 50),
+      },
+    });
+
+    currentLeftTableName = jt.name;
   }
 
   if (p.where) {
@@ -1719,7 +1826,11 @@ function executeSelect(
       const out: Row = {};
       for (const c of p.select) {
         if (c === "*") {
-          Object.assign(out, r);
+          for (const [k, v] of Object.entries(r)) {
+            if (!k.includes(".")) {
+              out[k] = v;
+            }
+          }
         } else {
           out[colName(c)] = resolveCol(r, c) ?? "";
         }
@@ -1728,7 +1839,7 @@ function executeSelect(
     }
     outCols.push(
       ...(p.select.includes("*")
-        ? baseTable.columns.map((c) => c.name)
+        ? Object.keys(finalRows[0] ?? {})
         : p.select.map(colName)),
     );
     push(

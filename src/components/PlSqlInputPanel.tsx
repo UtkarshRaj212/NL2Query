@@ -387,13 +387,7 @@ export function PlSqlInputPanel({
                   className="font-semibold"
                   style={{ color: "var(--foreground)" }}
                 >
-                  Confidence:{" "}
-                  <span
-                    className="font-mono font-bold"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    {(nlInfo.confidence * 100).toFixed(0)}%
-                  </span>
+                  Interpretation
                 </span>
                 <button
                   type="button"

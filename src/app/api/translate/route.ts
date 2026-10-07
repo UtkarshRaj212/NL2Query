@@ -219,33 +219,52 @@ export async function POST(request: Request) {
 
     const availableTableNames = currentSchema.map((t) => t.name);
 
-    const sqlSystemPrompt = `You are a concise, accurate SQL assistant.
+    const sqlSystemPrompt = `You are an expert, highly accurate SQL assistant.
 
 DATABASE SCHEMA:
 ${JSON.stringify(schemaSummary, null, 2)}
 AVAILABLE TABLES: ${availableTableNames.join(", ")}
 
-RULES:
-1. If the request matches the schema:
-   - Set isValid: true
-   - Set sql: Valid query using ONLY tables and columns from the schema.
-   - Set interpretation: 1 short sentence summary.
-2. If the user requests a table or column that does NOT exist (e.g. "shops"):
-   - Set isValid: false
-   - Set reason: Short note (e.g. 'Table "shops" does not exist in this database. Available tables: ${availableTableNames.join(", ")}.')
-   - Set suggestedTables: 1 or 2 real schema tables (e.g. ["products"]).
-   - Set suggestedSql: Working query on the suggested table (e.g. 'SELECT * FROM products;').
-   - Keep answers strictly concise. Do NOT hallucinate long text or repeat words.`;
+CRITICAL INSTRUCTIONS:
+1. FULL CONTEXT COMPREHENSION:
+   - Carefully read and analyze the ENTIRE user prompt from start to finish before generating SQL.
+   - NEVER generate queries based on only the first few words or a single matched table keyword.
+   - Comprehend all requested tables, entity relationships, joins, filter conditions, aggregations, and projections.
 
-    const plsqlSystemPrompt = `You are a concise Oracle PL/SQL assistant.
+2. JOINS & RELATIONSHIPS:
+   - When the user mentions multiple tables, related records (e.g. "members and their books", "orders with products"), or explicitly asks for "join" / "joins":
+     a) Identify all tables involved.
+     b) Identify primary key (pk) and foreign key (fk) relationships between those tables from the schema.
+     c) Construct proper JOIN clauses (e.g. FROM table1 JOIN table2 ON table1.fk = table2.pk).
+     d) Disambiguate column names by prefixing them with table names (e.g. members.name, books.title).
+
+3. RULES:
+   - If the request matches the schema:
+     * Set isValid: true
+     * Set sql: Valid, standard SQL query using ONLY tables and columns from the schema.
+     * Set interpretation: 1 clear, complete sentence explaining what the SQL accomplishes.
+   - If the user requests a table or column that does NOT exist (e.g. "shops"):
+     * Set isValid: false
+     * Set reason: Short note (e.g. 'Table "shops" does not exist in this database. Available tables: ${availableTableNames.join(", ")}.')
+     * Set suggestedTables: The valid tables from active schema.
+     * Set suggestedSql: Working query on the active schema.
+     * Keep answers strictly concise. Do NOT hallucinate long text or repeat words.`;
+
+    const plsqlSystemPrompt = `You are an expert Oracle PL/SQL assistant.
 
 DATABASE SCHEMA:
 ${JSON.stringify(schemaSummary, null, 2)}
 AVAILABLE TABLES: ${availableTableNames.join(", ")}
 
-RULES:
-1. If valid: isValid: true, sql: clean PL/SQL block, interpretation: short summary.
-2. If referencing missing table/column: isValid: false, reason: short note, suggestedTables: [1-2 real schema tables], suggestedSql: working PL/SQL script. Keep it concise.`;
+CRITICAL INSTRUCTIONS:
+1. FULL CONTEXT COMPREHENSION:
+   - Carefully read and analyze the ENTIRE user prompt from start to finish before generating PL/SQL.
+   - Never generate scripts based on only the first few words or a single matched table keyword.
+   - If multiple tables or joins are requested, write appropriate cursor queries with JOIN clauses and valid ON conditions.
+
+2. RULES:
+   - If valid: isValid: true, sql: clean PL/SQL block (DECLARE...BEGIN...END;), interpretation: short complete sentence summary.
+   - If referencing missing table/column: isValid: false, reason: short note, suggestedTables: [1-2 real schema tables], suggestedSql: working PL/SQL script. Keep it concise.`;
 
     const systemPrompt = isPlSql ? plsqlSystemPrompt : sqlSystemPrompt;
 
@@ -259,6 +278,11 @@ RULES:
     let suggestedSql: string | undefined;
 
     const candidateModels = [
+      "gemini-3.7-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
+      "gemini-flash-lite-latest",
+      "gemini-3-flash-preview",
       "gemini-3.8-flash",
       "gemini-3.6-flash",
     ];
@@ -371,15 +395,65 @@ RULES:
           });
         }
 
-        const matchedTable = currentSchema.find((t) =>
-          qLower.includes(t.name.toLowerCase()),
-        );
-        if (matchedTable) {
+        // Find all schema tables explicitly referenced in the user's question
+        const matchedTables = currentSchema.filter((t) => {
+          const baseName = t.name.toLowerCase();
+          const singular = baseName.endsWith("s") ? baseName.slice(0, -1) : baseName;
+          const regex = new RegExp(`\\b(${baseName}|${singular})\\b`, "i");
+          return regex.test(qLower);
+        });
+
+        const isJoinRequested = qLower.includes("join") || matchedTables.length >= 2;
+
+        if (isJoinRequested && matchedTables.length >= 2) {
+          // Identify base table and join related tables using foreign keys
+          const primaryTable = matchedTables[0];
+          const joins: string[] = [];
+
+          for (let i = 1; i < matchedTables.length; i++) {
+            const otherTable = matchedTables[i];
+            const fkToOther = primaryTable.columns.find((c) => c.fk?.table.toLowerCase() === otherTable.name.toLowerCase());
+            const fkFromOther = otherTable.columns.find((c) => c.fk?.table.toLowerCase() === primaryTable.name.toLowerCase());
+
+            if (fkFromOther) {
+              joins.push(`JOIN ${otherTable.name} ON ${otherTable.name}.${fkFromOther.name} = ${primaryTable.name}.${fkFromOther.fk!.column}`);
+            } else if (fkToOther) {
+              joins.push(`JOIN ${otherTable.name} ON ${primaryTable.name}.${fkToOther.name} = ${otherTable.name}.${fkToOther.fk!.column}`);
+            } else {
+              // Try finding a linking junction table in currentSchema
+              const junction = currentSchema.find((j) => {
+                const hasPrimary = j.columns.some((c) => c.fk?.table.toLowerCase() === primaryTable.name.toLowerCase());
+                const hasOther = j.columns.some((c) => c.fk?.table.toLowerCase() === otherTable.name.toLowerCase());
+                return hasPrimary && hasOther;
+              });
+
+              if (junction) {
+                const fkP = junction.columns.find((c) => c.fk?.table.toLowerCase() === primaryTable.name.toLowerCase())!;
+                const fkO = junction.columns.find((c) => c.fk?.table.toLowerCase() === otherTable.name.toLowerCase())!;
+                joins.push(`JOIN ${junction.name} ON ${junction.name}.${fkP.name} = ${primaryTable.name}.${fkP.fk!.column}`);
+                joins.push(`JOIN ${otherTable.name} ON ${junction.name}.${fkO.name} = ${otherTable.name}.${fkO.fk!.column}`);
+              } else {
+                joins.push(`JOIN ${otherTable.name}`);
+              }
+            }
+          }
+
+          const joinedSql = `SELECT * FROM ${primaryTable.name} ${joins.join(" ")};`;
           return NextResponse.json({
             question: transcribedQuestion,
-            sql: `SELECT * FROM ${matchedTable.name};`,
+            sql: joinedSql,
+            confidence: 0.85,
+            interpretation: `Retrieve joined records from ${matchedTables.map((t) => t.name).join(", ")}.`,
+            isValid: true,
+          });
+        }
+
+        if (matchedTables.length === 1 && !isJoinRequested) {
+          return NextResponse.json({
+            question: transcribedQuestion,
+            sql: `SELECT * FROM ${matchedTables[0].name};`,
             confidence: 0.9,
-            interpretation: `Retrieve rows from ${matchedTable.name}.`,
+            interpretation: `Retrieve rows from ${matchedTables[0].name}.`,
             isValid: true,
           });
         }
