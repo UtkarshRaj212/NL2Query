@@ -42,6 +42,7 @@ export interface Dataset {
   examples: DatasetExample[];
   isCustom?: boolean;
   createdAt?: number;
+  prompt?: string;
 }
 
 export const SCHEMA: Table[] = [
