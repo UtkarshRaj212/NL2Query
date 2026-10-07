@@ -975,7 +975,7 @@ export function TerminalView({
     >
       {/* ─── Top Window Title Bar (Authentic CMD / Terminal Chrome) ─── */}
       <header
-        className={`flex items-center justify-between px-3.5 py-2 border-b select-none text-xs shrink-0 ${
+        className={`flex flex-col md:flex-row md:items-center md:justify-between gap-2 px-3.5 py-2 border-b select-none text-xs shrink-0 ${
           isDark
             ? "bg-[#181818] border-[#2a2a2a] text-zinc-400"
             : "bg-[#f1f5f9] border-[#cbd5e1] text-zinc-700"
@@ -985,9 +985,10 @@ export function TerminalView({
           borderColor: isDark ? "#2a2a2a" : "#cbd5e1",
         }}
       >
-        <div className="flex items-center gap-3">
+        {/* Top row on mobile, left on desktop: Window Controls + Title (Full width on mobile, no horizontal compression) */}
+        <div className="flex items-center gap-2.5 w-full md:w-auto min-w-0">
           {/* Windows / Mac OS style dots */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={onExit}
@@ -1009,16 +1010,18 @@ export function TerminalView({
           </div>
 
           {/* Terminal Window Title */}
-          <div className="flex items-center gap-2">
-            <span className={isDark ? "text-zinc-500 font-bold" : "text-zinc-600 font-bold"}>C:\&gt;</span>
-            <span className={isDark ? "font-semibold text-zinc-200" : "font-bold text-black"}>
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <span className={`shrink-0 ${isDark ? "text-zinc-500 font-bold" : "text-zinc-600 font-bold"}`}>
+              C:\&gt;
+            </span>
+            <span className={`font-semibold leading-snug break-words ${isDark ? "text-zinc-200" : "font-bold text-black"}`}>
               NL2Query {mode.toUpperCase()} Terminal &mdash; [{datasetName.toUpperCase()}]
             </span>
           </div>
         </div>
 
-        {/* Right Action Tools */}
-        <div className="flex items-center gap-2">
+        {/* Next Line on mobile, right tools on desktop: Action Buttons */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap overflow-x-auto max-w-full pb-0.5 md:pb-0 scrollbar-thin">
           {/* Quick Help Button */}
           <button
             type="button"
@@ -1026,7 +1029,7 @@ export function TerminalView({
               e.stopPropagation();
               executeCommand("HELP");
             }}
-            className={`px-2 py-0.5 rounded border transition-colors cursor-pointer text-xs font-semibold ${
+            className={`px-2 py-0.5 rounded border transition-colors cursor-pointer text-xs font-semibold whitespace-nowrap ${
               isDark
                 ? "bg-[#262626] hover:bg-[#333333] text-zinc-300 hover:text-white border-[#383838]"
                 : "bg-white hover:bg-zinc-100 text-black border-zinc-300 shadow-2xs"
@@ -1043,7 +1046,7 @@ export function TerminalView({
               e.stopPropagation();
               executeCommand("SHOW DATABASES");
             }}
-            className={`px-2 py-0.5 rounded border transition-colors cursor-pointer text-xs font-semibold ${
+            className={`px-2 py-0.5 rounded border transition-colors cursor-pointer text-xs font-semibold whitespace-nowrap ${
               isDark
                 ? "bg-[#262626] hover:bg-[#333333] text-zinc-300 hover:text-white border-[#383838]"
                 : "bg-white hover:bg-zinc-100 text-black border-zinc-300 shadow-2xs"
@@ -1060,7 +1063,7 @@ export function TerminalView({
               e.stopPropagation();
               executeCommand("SHOW TABLES");
             }}
-            className={`px-2 py-0.5 rounded border transition-colors cursor-pointer text-xs font-semibold ${
+            className={`px-2 py-0.5 rounded border transition-colors cursor-pointer text-xs font-semibold whitespace-nowrap ${
               isDark
                 ? "bg-[#262626] hover:bg-[#333333] text-zinc-300 hover:text-white border-[#383838]"
                 : "bg-white hover:bg-zinc-100 text-black border-zinc-300 shadow-2xs"
@@ -1077,7 +1080,7 @@ export function TerminalView({
               e.stopPropagation();
               clearTerminal();
             }}
-            className={`px-2 py-0.5 rounded border transition-colors cursor-pointer text-xs font-semibold ${
+            className={`px-2 py-0.5 rounded border transition-colors cursor-pointer text-xs font-semibold whitespace-nowrap ${
               isDark
                 ? "bg-[#262626] hover:bg-[#333333] text-zinc-300 hover:text-white border-[#383838]"
                 : "bg-white hover:bg-zinc-100 text-black border-zinc-300 shadow-2xs"
@@ -1091,7 +1094,7 @@ export function TerminalView({
           <button
             type="button"
             onClick={onExit}
-            className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded border transition-colors cursor-pointer font-bold text-xs ${
+            className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded border transition-colors cursor-pointer font-bold text-xs whitespace-nowrap ${
               isDark
                 ? "bg-sky-950/80 hover:bg-sky-900 text-sky-300 border-sky-800/80"
                 : "bg-sky-100 hover:bg-sky-200 text-sky-950 border-sky-300 shadow-2xs"
