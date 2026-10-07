@@ -116,9 +116,95 @@ export function TerminalView({
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState<number>(-1);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const isInitializedRef = useRef(false);
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const prevDatasetRef = useRef(datasetName);
+
+  // Initialize history from sessionStorage or welcome banner on client mount
+  useEffect(() => {
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
+
+    let loadedHistory: OutputEntry[] | null = null;
+    try {
+      const savedHist = sessionStorage.getItem(`nl2query_term_hist_${mode}`);
+      if (savedHist) {
+        const parsed = JSON.parse(savedHist);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          loadedHistory = parsed;
+        }
+      }
+    } catch {}
+
+    if (loadedHistory) {
+      setHistory(loadedHistory);
+    } else {
+      const welcomeLines = [
+        "=========================================================================================",
+        "  NL2Query Embedded Terminal [Version 2.4.0-CLI]",
+        "  (c) Database Engine. Pure client-side execution. Zero cloud/AI overhead.",
+        "=========================================================================================",
+        `  Connected Session : ${mode.toUpperCase()} Console`,
+        `  Active Dataset    : ${datasetName.toUpperCase()} (${activeSchema.length} tables loaded: ${activeSchema.map((t) => t.name).join(", ") || "None"})`,
+        "  Multi-line Buffer : Supported (type ';' or '/' on a new line to execute).",
+        "  Quick Commands    : HELP, SHOW DATABASES, SHOW TABLES, USE <db>, DESC <table>, CLEAR, EXIT",
+        "=========================================================================================",
+      ];
+
+      setHistory([
+        {
+          id: "welcome",
+          type: "info",
+          lines: welcomeLines,
+        },
+      ]);
+    }
+
+    try {
+      const savedCmds = sessionStorage.getItem(`nl2query_term_cmds_${mode}`);
+      if (savedCmds) {
+        const parsed = JSON.parse(savedCmds);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCmdHistory(parsed);
+        }
+      }
+    } catch {}
+  }, [mode, datasetName, activeSchema]);
+
+  // Sync output history to sessionStorage (persists for the browser session until tab/site is closed)
+  useEffect(() => {
+    if (!isInitializedRef.current) return;
+    if (typeof window !== "undefined") {
+      try {
+        if (history.length > 0) {
+          sessionStorage.setItem(`nl2query_term_hist_${mode}`, JSON.stringify(history.slice(-300)));
+        }
+      } catch {}
+    }
+  }, [history, mode]);
+
+  // Sync command history to sessionStorage
+  useEffect(() => {
+    if (!isInitializedRef.current) return;
+    if (typeof window !== "undefined") {
+      try {
+        if (cmdHistory.length > 0) {
+          sessionStorage.setItem(`nl2query_term_cmds_${mode}`, JSON.stringify(cmdHistory.slice(-300)));
+        }
+      } catch {}
+    }
+  }, [cmdHistory, mode]);
+
+  const clearTerminal = useCallback(() => {
+    setHistory([]);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(`nl2query_term_hist_${mode}`);
+      } catch {}
+    }
+  }, [mode]);
 
   // Auto-focus terminal input on click anywhere inside the console
   const handleConsoleClick = () => {
@@ -130,28 +216,23 @@ export function TerminalView({
     terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [history, bufferLines, currentInput]);
 
-  // Initial Welcome Banner
+  // Dataset Switch Notification
   useEffect(() => {
-    const welcomeLines = [
-      "=========================================================================================",
-      "  NL2Query Embedded Terminal [Version 2.4.0-CLI]",
-      "  (c) Database Engine. Pure client-side execution. Zero cloud/AI overhead.",
-      "=========================================================================================",
-      `  Connected Session : ${mode.toUpperCase()} Console`,
-      `  Active Dataset    : ${datasetName.toUpperCase()} (${activeSchema.length} tables loaded: ${activeSchema.map((t) => t.name).join(", ") || "None"})`,
-      "  Multi-line Buffer : Supported (type ';' or '/' on a new line to execute).",
-      "  Quick Commands    : HELP, SHOW DATABASES, SHOW TABLES, USE <db>, DESC <table>, CLEAR, EXIT",
-      "=========================================================================================",
-    ];
-
-    setHistory([
-      {
-        id: "welcome",
-        type: "info",
-        lines: welcomeLines,
-      },
-    ]);
-  }, [datasetName, mode]); // Only on mount / mode switch
+    if (!isInitializedRef.current) return;
+    if (prevDatasetRef.current !== datasetName) {
+      setHistory((prev) => [
+        ...prev,
+        {
+          id: String(Date.now()),
+          type: "info",
+          lines: [
+            `[Session] Active dataset changed to: ${datasetName.toUpperCase()} (${activeSchema.length} tables loaded: ${activeSchema.map((t) => t.name).join(", ") || "None"})`,
+          ],
+        },
+      ]);
+      prevDatasetRef.current = datasetName;
+    }
+  }, [datasetName, activeSchema]);
 
   // Keyboard listener for ESC to exit
   useEffect(() => {
@@ -184,7 +265,7 @@ export function TerminalView({
       }
 
       if (upper === "CLEAR" || upper === "CLS") {
-        setHistory([]);
+        clearTerminal();
         return;
       }
 
@@ -829,7 +910,7 @@ export function TerminalView({
     // Ctrl + L: Clear screen
     if (e.ctrlKey && e.key === "l") {
       e.preventDefault();
-      setHistory([]);
+      clearTerminal();
       return;
     }
 
@@ -915,7 +996,7 @@ export function TerminalView({
             />
             <button
               type="button"
-              onClick={() => setHistory([])}
+              onClick={clearTerminal}
               title="Clear Terminal Buffer"
               className="w-3 h-3 rounded-full bg-[#ffbd2e] hover:opacity-80 transition-opacity cursor-pointer border border-[#dea123]"
             />
@@ -994,7 +1075,7 @@ export function TerminalView({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setHistory([]);
+              clearTerminal();
             }}
             className={`px-2 py-0.5 rounded border transition-colors cursor-pointer text-xs font-semibold ${
               isDark

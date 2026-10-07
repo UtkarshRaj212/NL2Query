@@ -26,41 +26,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-theme="slate"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} theme-slate dark h-full antialiased`}
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                let saved = localStorage.getItem('nlp-sql-theme') || 'slate';
-                const legacyMap = {
-                  // 'colorful-dark': 'eclipse',
-                  // 'blue-dark': 'lazuli',
-                  'blue-light': 'pearl',
-                  'greyscale': 'slate',
-                  // 'high-contrast': 'volt',
-                  'dark': 'slate',
-                  'light': 'pearl'
-                };
-                if (legacyMap[saved]) saved = legacyMap[saved];
-                const validThemes = ['slate', 'pearl'/*, 'eclipse', 'lazuli', 'volt'*/];
-                const theme = validThemes.includes(saved) ? saved : 'slate';
-                
-                document.documentElement.setAttribute('data-theme', theme);
-                document.documentElement.classList.add('theme-' + theme);
-                if (theme !== 'pearl') {
-                  document.documentElement.classList.add('dark');
-                } else {
-                  document.documentElement.classList.remove('dark');
-                }
-              } catch (_) {}
-            `,
-          }}
-        />
-      </head>
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>{children}</body>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }
