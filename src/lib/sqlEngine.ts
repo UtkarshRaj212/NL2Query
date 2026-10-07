@@ -92,6 +92,7 @@ export interface ParsedSelectQuery {
     fn: "COUNT" | "SUM" | "AVG" | "MIN" | "MAX";
     arg: string;
     distinct?: boolean;
+    alias?: string;
   }[];
   from: string;
   fromAlias?: string;
@@ -374,14 +375,7 @@ function resolveCol(row: Row, col: string): string | number | undefined {
     if (row[col] !== undefined) return row[col];
     const lowerCol = col.toLowerCase();
     const matchQualified = Object.keys(row).find((k) => k.toLowerCase() === lowerCol);
-    if (matchQualified && row[matchQualified] !== undefined) return row[matchQualified];
-
-    // 2. Fallback to bare column name if qualified name isn't directly present
-    const [, c] = col.split(".");
-    if (row[c] !== undefined) return row[c];
-    const lowerBare = c.toLowerCase();
-    const matchBare = Object.keys(row).find((k) => k.toLowerCase() === lowerBare);
-    return matchBare ? row[matchBare] : undefined;
+    return matchQualified ? row[matchQualified] : undefined;
   }
 
   // Bare column lookup: e.g. "name" or "id"
@@ -646,7 +640,7 @@ function parseSelect(q: string, schema: Table[]): ParsedSelectQuery {
   if (!rawFrom.trim()) throw new Error("Missing FROM clause in SELECT statement.");
 
   // Parse FROM + JOINs
-  const fromParts = rawFrom.split(/\s+join\s+/i);
+  const fromParts = rawFrom.split(/\s+(?:(inner|left)(?:\s+outer)?\s+)?join\s+/i);
   const basePart = fromParts[0].trim();
 
   // Check for operators indicating a missing WHERE clause in base table part
@@ -753,8 +747,8 @@ function parseSelect(q: string, schema: Table[]): ParsedSelectQuery {
     );
   }
 
-  for (let i = 1; i < fromParts.length; i++) {
-    const part = fromParts[i].trim();
+  for (let i = 1; i < fromParts.length; i += 2) {
+    const part = `${fromParts[i] ?? "inner"} ${fromParts[i + 1]}`.trim();
     const m = part.match(
       /^(?:(inner|left)(?:\s+outer)?\s+)?(\w+)(?:\s+(?:as\s+)?(\w+))?\s+on\s+([\w.]+)\s*=\s*([\w.]+)(?:\s+(.+))?$/i,
     );
@@ -788,13 +782,14 @@ function parseSelect(q: string, schema: Table[]): ParsedSelectQuery {
   for (const item of selectList.split(",")) {
     const t = item.trim();
     const agg = t.match(
-      /^(count|sum|avg|min|max)\s*\(\s*(distinct\s+)?(\*|\w+(\.\w+)?)\s*\)$/i,
+      /^(count|sum|avg|min|max)\s*\(\s*(distinct\s+)?(\*|\w+(\.\w+)?)\s*\)\s*(?:as\s+)?(\w+)?$/i,
     );
     if (agg) {
       parsed.aggregates.push({
         fn: agg[1].toUpperCase() as ParsedSelectQuery["aggregates"][number]["fn"],
         arg: agg[3],
         distinct: Boolean(agg[2]),
+        alias: agg[5],
       });
       parsed.select.push(t.toUpperCase());
     } else if (/^[\w.*]+$/.test(t)) {
@@ -820,6 +815,13 @@ function parseSelect(q: string, schema: Table[]): ParsedSelectQuery {
     const colName = m[2] || m[3];
     const op = m[4].toUpperCase();
     let val = m[5].trim();
+    if (/^\(\s*select\b[\s\S]*\)$/i.test(val)) {
+      const subqueryResult = executeSQL(val.slice(1, -1), schema);
+      if (subqueryResult.error) throw new Error(subqueryResult.error);
+      const row = subqueryResult.finalRows[0];
+      if (!row) throw new Error("Scalar subquery returned no rows.");
+      val = String(Object.values(row)[0] ?? "");
+    }
     const valFnMatch = val.match(/^(?:UPPER|LOWER)\s*\(\s*(.+?)\s*\)$/i);
     if (valFnMatch) {
       val = valFnMatch[1].trim();
@@ -845,7 +847,7 @@ function parseSelect(q: string, schema: Table[]): ParsedSelectQuery {
   // Parse GROUP BY
   const gb = clauses.get("group by");
   if (gb) {
-    if (!/^\w+$/.test(gb.trim()))
+    if (!/^\w+(?:\.\w+)?$/.test(gb.trim()))
       throw new Error("GROUP BY supports a single column name.");
     parsed.groupBy = gb.trim();
   }
@@ -1464,25 +1466,64 @@ function parseTruncate(q: string, schema: Table[]): ParsedTruncateQuery {
 function splitClauses(q: string): Map<string, string> {
   const map = new Map<string, string>();
   const seenKeys = new Set<string>();
-  const re = /\b(select|from|where|group\s+by|having|order\s+by|limit)\b/gi;
+  const matches: { index: number; length: number; key: string; text: string }[] = [];
+  let depth = 0;
+  let quote = "";
+
+  for (let i = 0; i < q.length; i++) {
+    const char = q[i];
+    if (quote) {
+      if (char === quote) {
+        if (q[i + 1] === quote && quote === "'") {
+          i++;
+        } else {
+          quote = "";
+        }
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === "(") {
+      depth++;
+      continue;
+    }
+    if (char === ")") {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (depth !== 0 || (i > 0 && /[\w]/.test(q[i - 1]))) continue;
+
+    const clause = q.slice(i).match(/^(select|from|where|group\s+by|having|order\s+by|limit)\b/i);
+    if (clause) {
+      matches.push({
+        index: i,
+        length: clause[0].length,
+        key: clause[1].toLowerCase().replace(/\s+/g, " "),
+        text: clause[0],
+      });
+      i += clause[0].length - 1;
+    }
+  }
+
   let last = -1;
   let key = "";
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(q))) {
+  for (const match of matches) {
     if (last === -1) {
-      const leading = q.slice(0, m.index).trim();
+      const leading = q.slice(0, match.index).trim();
       if (leading) {
-        throw new Error(`Unexpected token "${leading}" before ${m[0].toUpperCase()}.`);
+        throw new Error(`Unexpected token "${leading}" before ${match.text.toUpperCase()}.`);
       }
     }
-    const newKey = m[1].toLowerCase().replace(/\s+/g, " ");
-    if (seenKeys.has(newKey)) {
-      throw new Error(`Duplicate ${newKey.toUpperCase()} clause in SQL statement.`);
+    if (seenKeys.has(match.key)) {
+      throw new Error(`Duplicate ${match.key.toUpperCase()} clause in SQL statement.`);
     }
-    seenKeys.add(newKey);
-    if (key) map.set(key, q.slice(last, m.index).trim());
-    key = newKey;
-    last = m.index + m[0].length;
+    seenKeys.add(match.key);
+    if (key) map.set(key, q.slice(last, match.index).trim());
+    key = match.key;
+    last = match.index + match.length;
   }
   if (key) map.set(key, q.slice(last).trim());
   return map;
@@ -1573,16 +1614,22 @@ function executeSelect(
   const baseTable = getTable(p.from, schema);
   if (!baseTable) throw new Error(`Table "${p.from}" not found.`);
 
-  const prefixRow = (r: Row, tableName: string): Row => {
+  const prefixRow = (r: Row, tableName: string, alias?: string): Row => {
     const row: Row = { ...r };
     for (const [k, v] of Object.entries(r)) {
       row[`${tableName}.${k}`] = v;
       row[`${tableName.toLowerCase()}.${k.toLowerCase()}`] = v;
+      if (alias) {
+        row[`${alias}.${k}`] = v;
+        row[`${alias.toLowerCase()}.${k.toLowerCase()}`] = v;
+      }
     }
     return row;
   };
 
-  let rows: Row[] = baseTable.rows.map((r) => prefixRow(r, baseTable.name));
+  let rows: Row[] = baseTable.rows.map((r) =>
+    prefixRow(r, baseTable.name, p.fromAlias),
+  );
   push(
     "FROM",
     `Scan ${baseTable.name}`,
@@ -1610,7 +1657,7 @@ function executeSelect(
     for (const l of rows) {
       let matched = false;
       for (const r of jt.rows) {
-        const prefixedR = prefixRow(r, jt.name);
+        const prefixedR = prefixRow(r, jt.name, j.alias);
         const merged: Row = { ...l, ...prefixedR };
 
         const leftVal = resolveCol(merged, j.left);
@@ -1787,7 +1834,7 @@ function executeSelect(
       const out: Row = {};
       if (p.groupBy) out[colName(p.groupBy)] = keys[i];
       for (const a of p.aggregates) {
-        const label = `${a.fn.toLowerCase()}_${a.arg === "*" ? "all" : colName(a.arg)}`;
+        const label = a.alias ?? `${a.fn.toLowerCase()}_${a.arg === "*" ? "all" : colName(a.arg)}`;
         out[label] = computeAgg(grp, a.fn, a.arg, a.distinct);
       }
       finalRows.push(out);
