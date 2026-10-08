@@ -12,6 +12,11 @@ import {
   PLSQL_QUIZ_QUESTIONS,
   validateScriptAnswer,
 } from "@/lib/quizData";
+import { UserAuthButton } from "./UserAuthButton";
+import { LeaderboardView } from "./LeaderboardView";
+import { AuthModal } from "./AuthModal";
+import { useSession } from "@/lib/auth-client";
+
 
 // Data Structure for Recent Quizzes History
 export interface RecentQuizRecord {
@@ -381,6 +386,17 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
   const [plsqlRecentQuizzes, setPlsqlRecentQuizzes] = useState<RecentQuizRecord[]>([]);
   const [showRecentDrawer, setShowRecentDrawer] = useState<boolean>(false);
 
+  // Leaderboard & Streak State
+  const { data: session } = useSession();
+  const [showLeaderboard, setShowLeaderboard] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [streakResult, setStreakResult] = useState<{
+    streak: number;
+    streakIncreased: boolean;
+    rank?: number | string;
+  } | null>(null);
+
+
   useEffect(() => {
     try {
       // 1. Load SQL recent quizzes
@@ -670,6 +686,36 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
       });
     }
 
+    // Record quiz attempt to server for streak & leaderboard
+    fetch("/api/quiz/record", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode,
+        score: correctCount,
+        total,
+        accuracy,
+        timeTakenSeconds: elapsedSeconds,
+      }),
+    })
+      .then((res) => {
+        if (res.ok) return res.json();
+        return null;
+      })
+      .then((data) => {
+        if (data && data.success) {
+          setStreakResult({
+            streak: data.streak,
+            streakIncreased: data.streakIncreased,
+            rank: data.rank,
+          });
+          window.dispatchEvent(new CustomEvent("quiz-recorded", { detail: data }));
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to sync quiz record", err);
+      });
+
     setQuizState("finished");
   };
 
@@ -826,8 +872,8 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
 
         {/* Right Section: Only Essential Buttons when Active (Finish Quiz & Theme). Recent button ONLY before start! */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-          {/* Recent Quizzes drawer toggle: ONLY VISIBLE BEFORE START (Setup / Finished) */}
-          {quizState !== "active" && (
+          {/* Recent Quizzes drawer toggle: ONLY VISIBLE IN SETUP (NOT during quiz, NOT on assessment results) */}
+          {quizState === "setup" && (
             <button
               type="button"
               onClick={() => setShowRecentDrawer((prev) => !prev)}
@@ -857,6 +903,26 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
               Finish Quiz
             </button>
           )}
+
+          {/* Global Leaderboard Button */}
+          {quizState !== "active" && (
+            <button
+              type="button"
+              onClick={() => setShowLeaderboard(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer shadow-2xs whitespace-nowrap shrink-0 hover:border-amber-500/50 hover:bg-amber-500/10 text-amber-400"
+              style={{
+                borderColor: "var(--border)",
+                background: "var(--surface-subtle)",
+              }}
+              title="View Global Leaderboard & Daily Streaks"
+            >
+              <span>🏆</span>
+              <span className="hidden sm:inline">Leaderboard</span>
+            </button>
+          )}
+
+          {/* User Auth Profile / Sign In */}
+          <UserAuthButton />
 
           {/* Essential Button: Theme switcher */}
           <button
@@ -1869,6 +1935,47 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
                   </div>
                 </div>
 
+                {/* Daily Streak & Leaderboard Banner on Results */}
+                {streakResult ? (
+                  <div className="p-4 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono shadow-md">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl animate-bounce">🔥</span>
+                      <div className="text-left">
+                        <span className="text-xs font-bold text-amber-300 block font-sans">
+                          {streakResult.streakIncreased ? "🎉 Streak Increased!" : "🔥 Daily Streak Maintained!"}
+                        </span>
+                        <p className="text-sm font-black text-amber-200">
+                          {streakResult.streak} Day {streakResult.streak === 1 ? "Streak" : "Streak"} Active
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowLeaderboard(true)}
+                      className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-zinc-950 font-bold text-xs shadow-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                    >
+                      <span>🏆</span>
+                      <span>View Leaderboard {streakResult.rank ? `(#${streakResult.rank})` : ""}</span>
+                    </button>
+                  </div>
+                ) : !session?.user ? (
+                  <div className="p-4 rounded-2xl border border-sky-500/30 bg-sky-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xl">🏆</span>
+                      <p className="text-xs text-sky-200 font-medium">
+                        Sign in with Google to save your daily streak and appear on the Global Leaderboard!
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAuthModalOpen(true)}
+                      className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 font-bold text-xs shadow-xs transition-all shrink-0 cursor-pointer"
+                    >
+                      Sign In
+                    </button>
+                  </div>
+                ) : null}
+
                 {/* Questions List Review in Summary */}
                 <div
                   className="space-y-2 max-h-56 overflow-y-auto p-2 border rounded-2xl scrollbar-thin"
@@ -1948,15 +2055,6 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* Right Pane: Recent Quizzes in summary */}
-            <div className="hidden lg:flex w-80 xl:w-96 border-l shrink-0 flex-col overflow-hidden" style={{ borderColor: "var(--border)" }}>
-              <RecentQuizzesPane
-                mode={mode}
-                records={activeRecentQuizzes}
-                onClear={handleClearRecentQuizzes}
-              />
             </div>
           </div>
         )}
@@ -2053,6 +2151,57 @@ export function QuizContainer({ initialMode }: QuizContainerProps) {
           </div>
         </div>
       )}
+
+      {/* Global Leaderboard Modal */}
+      {showLeaderboard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div
+            className="relative w-full max-w-4xl max-h-[92vh] overflow-hidden rounded-3xl border shadow-2xl flex flex-col animate-in zoom-in-95 duration-200"
+            style={{
+              background: "var(--panel)",
+              borderColor: "var(--border)",
+              color: "var(--foreground)",
+            }}
+          >
+            {/* Modal Top Header Bar */}
+            <div
+              className="flex items-center justify-between px-6 py-4 border-b shrink-0"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">🏆</span>
+                <h3 className="text-lg font-bold tracking-tight">Leaderboard & Streaks</h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowLeaderboard(false)}
+                className="p-1.5 rounded-xl border text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--surface-subtle)",
+                }}
+                aria-label="Close Leaderboard"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <LeaderboardView />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Auth Modal for Sign In */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
     </div>
   );
 }

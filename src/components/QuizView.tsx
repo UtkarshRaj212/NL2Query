@@ -79,8 +79,32 @@ export function QuizView({ mode, onBackToWorkspace }: QuizViewProps) {
         }
         return next;
       });
+
+      if (record.isSubmitted && record.isCorrect) {
+        fetch("/api/quiz/record", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode,
+            score: 1,
+            total: 1,
+            accuracy: 100,
+            timeTakenSeconds: 30,
+          }),
+        })
+          .then((res) => {
+            if (res.ok) return res.json();
+            return null;
+          })
+          .then((data) => {
+            if (data && data.success) {
+              window.dispatchEvent(new CustomEvent("quiz-recorded", { detail: data }));
+            }
+          })
+          .catch(() => {});
+      }
     },
-    [storageKey]
+    [storageKey, mode]
   );
 
   // Reset all progress
