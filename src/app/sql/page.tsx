@@ -891,7 +891,13 @@ export default function Home() {
         {activeSection === "learn" && (
           <LearnView onBackToWorkspace={() => setActiveSection("workspace")} />
         )}
-        {activeSection === "help" && <HelpView />}
+        {activeSection === "help" && (
+          <HelpView
+            onBackToWorkspace={() => setActiveSection("workspace")}
+            onNavigateSection={(section) => setActiveSection(section)}
+            onOpenTerminal={() => setIsTerminalMode(true)}
+          />
+        )}
         {activeSection === "developedBy" && <DevelopedByView />}
       </div>
 

@@ -133,12 +133,12 @@ function PlSqlLearnCard({
         className="w-full p-4 md:p-5 flex items-center justify-between text-left cursor-pointer transition-colors hover:bg-[var(--surface-subtle)] focus:outline-none"
       >
         <div className="flex items-start md:items-center gap-3 md:gap-4 pr-3 min-w-0">
+          {/* Numbering box: Site theme color (Orange for PL/SQL) with white text */}
           <span
-            className="text-xs md:text-sm font-mono font-bold px-2.5 py-1 rounded shrink-0 border"
+            className="text-xs md:text-sm font-mono font-bold px-2.5 py-1 rounded-lg shrink-0 shadow-xs border border-transparent"
             style={{
-              background: isOpen ? "var(--accent)" : "var(--surface-subtle)",
-              color: isOpen ? "var(--accent-foreground)" : "var(--accent)",
-              borderColor: "var(--border)",
+              background: "var(--accent, #FF6A3D)",
+              color: "#ffffff",
             }}
           >
             {num}
@@ -303,9 +303,54 @@ export function PlSqlLearnView({ }: PlSqlLearnViewProps) {
         </div>
       </div>
 
-      {/* Module Filter & Search Toolbar */}
+      {/* Prominent Search Bar on Top of Content */}
+      <div className="mb-6">
+        <div className="relative w-full">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none opacity-60">
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              style={{ color: "var(--foreground)" }}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search PL/SQL topics, blocks, cursors, triggers, procedures..."
+            className="w-full pl-10 pr-12 py-2.5 rounded-xl border text-sm transition-all focus:outline-none shadow-2xs"
+            style={{
+              background: "var(--surface-subtle)",
+              borderColor: "var(--border)",
+              color: "var(--foreground)",
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs opacity-60 hover:opacity-100 cursor-pointer font-sans"
+              style={{ color: "var(--foreground)" }}
+              title="Clear search"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Module Filter Toolbar */}
       <div
-        className="p-3.5 rounded-xl border mb-6 flex flex-wrap items-center justify-between gap-3 shadow-2xs"
+        className="p-3.5 rounded-xl border mb-6 flex flex-wrap items-center gap-1.5 shadow-2xs"
         style={{
           background: "var(--panel)",
           borderColor: "var(--border)",
@@ -432,34 +477,6 @@ export function PlSqlLearnView({ }: PlSqlLearnViewProps) {
           >
             Media &amp; References (1)
           </button>
-        </div>
-
-        {/* Search input */}
-        <div className="relative flex-1 sm:max-w-xs min-w-[200px]">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search PL/SQL (e.g. CURSOR, TRIGGER, FORALL)..."
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs border bg-[var(--surface-subtle)] focus:outline-none focus:border-[var(--accent)]"
-            style={{
-              borderColor: "var(--border)",
-              color: "var(--foreground)",
-            }}
-          />
-          <svg
-            className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 opacity-60"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
         </div>
       </div>
 

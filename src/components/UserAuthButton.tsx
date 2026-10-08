@@ -134,7 +134,7 @@ export function UserAuthButton() {
   const rank = stats?.rank ?? "-";
   const userInitials = (user.name || "U")
     .split(" ")
-    .map((n) => n[0])
+    .map((n: string) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
@@ -152,7 +152,7 @@ export function UserAuthButton() {
       >
         {/* Streak Indicator */}
         <div className="flex items-center gap-1 text-xs font-mono font-bold text-amber-400">
-          <span className="text-sm animate-pulse">🔥</span>
+          <span className="text-sm">🔥</span>
           <span>{streak}</span>
         </div>
 
