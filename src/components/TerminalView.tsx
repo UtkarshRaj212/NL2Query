@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { Table, Column, Dataset } from "@/lib/schema";
-import { executeSQL, type QueryResult, type Row } from "@/lib/sqlEngine";
+import { executeSQL, levenshteinDist, type QueryResult, type Row } from "@/lib/sqlEngine";
 import { executePLSQL, type PLSQLResult } from "@/lib/plsqlEngine";
 import { validateSqlIdentifier } from "@/lib/sqlNamingRules";
 
@@ -94,6 +94,494 @@ function formatAsciiTable(columns: string[], rows: Row[]): string[] {
 
   result.push(separator);
   return result;
+}
+
+/**
+ * Resolves a table name to the closest valid table in the active schema,
+ * checking exact, prefix, reverse-prefix, substring, and Levenshtein matches.
+ */
+export function findBestTableMatch(target: string, schema: Table[]): string | null {
+  if (!target || !schema || schema.length === 0) return null;
+  const tClean = target.toLowerCase().replace(/[^a-zA-Z0-9_]/g, "");
+  if (!tClean) return schema[0]?.name || null;
+
+  // 1. Exact match
+  const exact = schema.find((s) => s.name.toLowerCase() === tClean);
+  if (exact) return exact.name;
+
+  // 2. Schema table starts with target (e.g. "customers".startsWith("cust") or "orders".startsWith("ord"))
+  const prefixMatch = schema.find((s) => s.name.toLowerCase().startsWith(tClean));
+  if (prefixMatch) return prefixMatch.name;
+
+  // 3. Target starts with schema table (e.g. "customers_data".startsWith("customers"))
+  const revPrefixMatch = schema.find((s) => tClean.startsWith(s.name.toLowerCase()));
+  if (revPrefixMatch) return revPrefixMatch.name;
+
+  // 4. Substring contains (e.g. "customers".includes("tom"))
+  const subMatch = schema.find((s) => s.name.toLowerCase().includes(tClean));
+  if (subMatch) return subMatch.name;
+
+  // 5. Levenshtein edit distance
+  let best: string | null = null;
+  let minD = 5;
+  for (const s of schema) {
+    const d = levenshteinDist(tClean, s.name.toLowerCase());
+    if (d < minD) {
+      minD = d;
+      best = s.name;
+    }
+  }
+  if (best) return best;
+
+  // 6. Default to first table if schema is single
+  if (schema.length === 1) return schema[0].name;
+
+  return null;
+}
+
+/**
+ * Intelligent syntax & command suggestion helper.
+ * When a user enters an incorrect or misspelled command in the terminal,
+ * provides the closest expected syntax (if applicable).
+ */
+export function getCommandSuggestion(
+  rawInput: string,
+  activeSchema: Table[],
+  datasets: Dataset[] = [],
+  errorMessage?: string,
+  mode: "sql" | "plsql" = "sql"
+): string | null {
+  const trimmed = rawInput.trim();
+  if (!trimmed) return null;
+
+  const firstTable = activeSchema[0]?.name || "table_name";
+  const firstDb = datasets[0]?.id || datasets[0]?.name || "ecommerce";
+
+  let query = trimmed;
+
+  // 0. FIRST: Check for illegal symbols and missing SELECT expressions
+  if (/^\s*SELECT\b/i.test(query)) {
+    // 0A. Missing SELECT expression: "SELECT FROM <table>" (nothing between SELECT and FROM)
+    if (/\bSELECT\s+FROM\b/i.test(query)) {
+      query = query.replace(/\b(SELECT)(\s+)(FROM)\b/i, "$1 *$2$3");
+    }
+
+    // 0B. Illegal symbols/operators in SELECT projection list: e.g. "SELECT + FROM <table>"
+    query = query.replace(
+      /\b(SELECT\s+)([^a-zA-Z0-9_\s*,()]+|\+{1,2}|-{1,2})(\s+FROM\b)/i,
+      "$1*$3"
+    );
+
+    // Also check if errorMessage explicitly names an unsupported expression (e.g. Unsupported SELECT expression: "+")
+    if (errorMessage) {
+      const unsuppMatch = errorMessage.match(/Unsupported SELECT expression:\s*["']([^"']+)["']/i);
+      if (unsuppMatch && unsuppMatch[1]) {
+        const badExpr = unsuppMatch[1].trim();
+        if (/^[^a-zA-Z0-9_*]+$/.test(badExpr) || badExpr === "+") {
+          const escaped = badExpr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          query = query.replace(new RegExp(`(\\bSELECT\\s+)${escaped}(\\s+FROM\\b)`, "i"), "$1*$2");
+        }
+      }
+    }
+
+    // 0C. Illegal symbols after FROM instead of table: e.g. "SELECT * FROM +"
+    query = query.replace(
+      /\b(FROM\s+)([^a-zA-Z0-9_\s;]+|\+{1,2}|-{1,2})(\s*;?)$/i,
+      `$1${firstTable}$3`
+    );
+
+    // 0D. Solitary SELECT or SELECT with only symbols (no FROM): e.g. "SELECT", "SELECT;", "SELECT +"
+    const cleanNoSemi = query.replace(/;+$/, "").trim();
+    if (
+      cleanNoSemi.toUpperCase() === "SELECT" ||
+      /^SELECT\s+[^a-zA-Z0-9_*]+$/i.test(cleanNoSemi)
+    ) {
+      const isLower = cleanNoSemi.startsWith("select");
+      return isLower ? `select * from ${firstTable};` : `SELECT * FROM ${firstTable};`;
+    }
+  }
+
+  // 1. Table name typo extraction from error message or query
+  if (errorMessage) {
+    const tblMatch =
+      errorMessage.match(/(?:table|view)\s+['"`]?([a-zA-Z0-9_]+)['"`]?\s+(?:does not exist|not found)/i) ||
+      errorMessage.match(/Unknown table\s+['"`]?([a-zA-Z0-9_]+)['"`]?/i) ||
+      errorMessage.match(/does not contain table\s+['"`]?([a-zA-Z0-9_]+)['"`]?/i);
+
+    if (tblMatch && tblMatch[1]) {
+      const wrongTable = tblMatch[1];
+      const bestTable = findBestTableMatch(wrongTable, activeSchema);
+      if (bestTable) {
+        const regex = new RegExp(`\\b${wrongTable}\\b`, "i");
+        if (regex.test(query)) {
+          query = query.replace(regex, bestTable);
+        } else {
+          query = `SELECT * FROM ${bestTable};`;
+        }
+      }
+    }
+
+    // Column typo in error: "Column '...' does not exist"
+    const colMatch = errorMessage.match(/Column\s+['"`]?([a-zA-Z0-9_]+)['"`]?\s+does not exist/i);
+    if (colMatch && colMatch[1]) {
+      const wrongCol = colMatch[1];
+      let bestCol: string | null = null;
+      let minColDist = 4;
+
+      for (const t of activeSchema) {
+        for (const c of t.columns) {
+          const d = levenshteinDist(wrongCol.toLowerCase(), c.name.toLowerCase());
+          if (d < minColDist) {
+            minColDist = d;
+            bestCol = c.name;
+          }
+        }
+      }
+
+      if (bestCol && minColDist <= 3) {
+        const regex = new RegExp(`\\b${wrongCol}\\b`, "i");
+        if (regex.test(query)) {
+          let fixed = query.replace(regex, bestCol);
+          if (!fixed.endsWith(";") && !fixed.endsWith("/")) fixed += ";";
+          return fixed;
+        }
+      }
+    }
+
+    // Database typo in error: "Unknown database '...'" or "Can't drop database '...'"
+    const dbMatch =
+      errorMessage.match(/Unknown database\s+['"`]?([a-zA-Z0-9_]+)['"`]?/i) ||
+      errorMessage.match(/Can't drop database\s+['"`]?([a-zA-Z0-9_]+)['"`]?/i);
+    if (dbMatch && dbMatch[1]) {
+      const wrongDb = dbMatch[1];
+      let bestDb: string | null = null;
+      let minDbDist = 4;
+
+      for (const d of datasets) {
+        const distName = levenshteinDist(wrongDb.toLowerCase(), d.name.toLowerCase());
+        const distId = levenshteinDist(wrongDb.toLowerCase(), d.id.toLowerCase());
+        const dMin = Math.min(distName, distId);
+        if (dMin < minDbDist) {
+          minDbDist = dMin;
+          bestDb = d.id;
+        }
+      }
+
+      if (bestDb && minDbDist <= 3) {
+        return `USE ${bestDb};`;
+      }
+    }
+  }
+
+  // 1B. Inspect query for any table mentioned after FROM, JOIN, INTO, UPDATE, TABLE
+  const tableRefMatch = query.match(/\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+([a-zA-Z0-9_]+)/i);
+  if (tableRefMatch && tableRefMatch[1]) {
+    const rawTbl = tableRefMatch[1];
+    const exists = activeSchema.some((s) => s.name.toLowerCase() === rawTbl.toLowerCase());
+    if (!exists) {
+      const bestTable = findBestTableMatch(rawTbl, activeSchema);
+      if (bestTable) {
+        query = query.replace(new RegExp(`\\b${rawTbl}\\b`, "i"), bestTable);
+      }
+    }
+  }
+
+  // If query was modified in Step 0 or Step 1
+  if (query !== trimmed) {
+    // Re-check table references in query to ensure table is 100% valid
+    const reRefMatch = query.match(/\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+([a-zA-Z0-9_]+)/i);
+    if (reRefMatch && reRefMatch[1]) {
+      const rawTbl = reRefMatch[1];
+      const exists = activeSchema.some((s) => s.name.toLowerCase() === rawTbl.toLowerCase());
+      if (!exists) {
+        const bestTable = findBestTableMatch(rawTbl, activeSchema);
+        if (bestTable) {
+          query = query.replace(new RegExp(`\\b${rawTbl}\\b`, "i"), bestTable);
+        }
+      }
+    }
+    if (!query.endsWith(";") && !query.endsWith("/")) query += ";";
+    return query;
+  }
+
+  // 2. Meta command matching
+  const cleanUpper = trimmed.toUpperCase().replace(/;+$/, "").trim();
+
+  const metaCommands: { target: string; syntax: string; aliases: string[] }[] = [
+    {
+      target: "SHOW TABLES",
+      syntax: "SHOW TABLES;",
+      aliases: [
+        "SHOW TABLE", "SHOW TBL", "SHOW TABS", "SHOW TABEL", "SHOW TABELS",
+        "TABLES", "TABLE", "\\DT", "\\D", "LIST TABLES", "SHOW ALL TABLES",
+      ],
+    },
+    {
+      target: "SHOW DATABASES",
+      syntax: "SHOW DATABASES;",
+      aliases: [
+        "SHOW DATABASE", "SHOW DATASET", "SHOW DATASETS", "SHOW DB", "SHOW DBS",
+        "DATABASES", "DATASETS", "DATABASE", "DATASET", "LIST DATABASES",
+        "SHOW SCHEMAS", "SCHEMAS", "SHOW SCHEME",
+      ],
+    },
+    {
+      target: "HELP",
+      syntax: "HELP;",
+      aliases: ["HLP", "HELPP", "HELPME", "MAN", "COMMANDS", "USAGE", "?", "INFO", "MANUAL"],
+    },
+    {
+      target: "CLEAR",
+      syntax: "CLEAR;",
+      aliases: ["CLS", "CLEAN", "CLR", "CLERA", "CLEER", "CLEARSCREEN", "CLEARSCR"],
+    },
+    {
+      target: "RESET",
+      syntax: "RESET;",
+      aliases: ["REEST", "RESTE", "RESTART", "RESTORE", "RESET DB"],
+    },
+    {
+      target: "EXIT",
+      syntax: "EXIT;",
+      aliases: ["EXT", "EXITT", "QUITT", "QT", "BYE", "CLOSE", "QUIT"],
+    },
+    {
+      target: "SCHEMA",
+      syntax: "SCHEMA;",
+      aliases: ["SCHMA", "CATALOG", "SHOW SCHEMA", "VIEW SCHEMA"],
+    },
+    {
+      target: "HISTORY",
+      syntax: "HISTORY;",
+      aliases: ["HIST", "HISTROY", "HISTRY", "HISTORIC", "SHOW HISTORY"],
+    },
+    {
+      target: "EXPORT",
+      syntax: "EXPORT;",
+      aliases: ["EXPRT", "EXPROT", "DUMP", "BACKUP", "EXPORT SQL", "DUMP SQL"],
+    },
+  ];
+
+  for (const meta of metaCommands) {
+    if (meta.aliases.includes(cleanUpper)) {
+      return meta.syntax;
+    }
+    const dist = levenshteinDist(cleanUpper, meta.target);
+    if (dist <= (meta.target.length > 6 ? 3 : 2)) {
+      return meta.syntax;
+    }
+  }
+
+  // DESC / DESCRIBE typos
+  if (/^(?:DESC|DESCRIBE|DESCR|DESCP|DSC)\b/i.test(query)) {
+    const parts = query.split(/\s+/);
+    if (parts.length >= 2) {
+      const targetTable = parts[1].replace(/;+$/, "").trim();
+      const bestTable = findBestTableMatch(targetTable, activeSchema) || firstTable;
+      return `DESC ${bestTable};`;
+    }
+    return `DESC ${firstTable};`;
+  }
+
+  // USE <database> typos
+  if (/^USE\b/i.test(trimmed)) {
+    const parts = trimmed.split(/\s+/);
+    if (parts.length >= 2) {
+      const targetDb = parts[1].replace(/;+$/, "").trim().toLowerCase();
+      let bestDb: string | null = null;
+      let minDbDist = 4;
+      for (const d of datasets) {
+        const d1 = levenshteinDist(targetDb, d.id.toLowerCase());
+        const d2 = levenshteinDist(targetDb, d.name.toLowerCase());
+        const minD = Math.min(d1, d2);
+        if (minD < minDbDist) {
+          minDbDist = minD;
+          bestDb = d.id;
+        }
+      }
+      if (bestDb && minDbDist <= 3) {
+        return `USE ${bestDb};`;
+      }
+    }
+    return `USE ${firstDb};`;
+  }
+
+  // 3. SQL Keywords typo matching
+  const tokens = trimmed.split(/\s+/);
+  const firstTokenUpper = tokens[0]?.toUpperCase().replace(/[^A-Z_]/g, "") || "";
+
+  const sqlKeywords: { kw: string; template: string; typos: string[] }[] = [
+    {
+      kw: "SELECT",
+      template: `SELECT * FROM ${firstTable};`,
+      typos: [
+        "SELETC", "SELET", "SLCT", "SELCT", "SLECT", "SELECTT",
+        "SLEECT", "SEELECT", "SELEC", "SELE", "SOLECT", "SELEKT",
+      ],
+    },
+    {
+      kw: "INSERT",
+      template: `INSERT INTO ${firstTable} VALUES (...);`,
+      typos: ["INSRT", "INSTERT", "ISNERT", "INSER", "INSERRT", "INSRTT"],
+    },
+    {
+      kw: "UPDATE",
+      template: `UPDATE ${firstTable} SET col = val WHERE condition;`,
+      typos: ["UPDAT", "UPDT", "UPDTE", "UUPDATE", "UPDAET", "UPDAE"],
+    },
+    {
+      kw: "DELETE",
+      template: `DELETE FROM ${firstTable} WHERE condition;`,
+      typos: ["DELET", "DELTE", "DLT", "DLETE", "DELEET", "DEL"],
+    },
+    {
+      kw: "CREATE",
+      template: `CREATE TABLE <table_name> (id INT PRIMARY KEY, name VARCHAR(100));`,
+      typos: ["CRET", "CRATE", "CRTE", "CREAT", "CRAETE"],
+    },
+    {
+      kw: "DROP",
+      template: `DROP TABLE ${firstTable};`,
+      typos: ["DRP", "DORP", "DROPP"],
+    },
+    {
+      kw: "ALTER",
+      template: `ALTER TABLE ${firstTable} ADD column_name datatype;`,
+      typos: ["ALTR", "ATLTER", "ALTERR"],
+    },
+    {
+      kw: "TRUNCATE",
+      template: `TRUNCATE TABLE ${firstTable};`,
+      typos: ["TRUNCT", "TRUNCTE", "TRUNC", "TRUNCAT"],
+    },
+  ];
+
+  for (const item of sqlKeywords) {
+    const isTypo = item.typos.includes(firstTokenUpper);
+    const dist = levenshteinDist(firstTokenUpper, item.kw);
+    if (isTypo || (dist <= 2 && firstTokenUpper.length >= 3 && firstTokenUpper !== item.kw)) {
+      if (tokens.length > 1) {
+        let fixed = query.replace(new RegExp(`^\\s*${tokens[0]}\\b`, "i"), item.kw);
+        fixed = fixed.replace(/\bTABEL\b/gi, "TABLE");
+        fixed = fixed.replace(/\bFORM\b/gi, "FROM");
+        fixed = fixed.replace(/\bWHER\b/gi, "WHERE");
+        if (!fixed.endsWith(";") && !fixed.endsWith("/")) {
+          fixed += ";";
+        }
+        return fixed;
+      }
+      return item.template;
+    }
+  }
+
+  // Check if first token IS SELECT but has syntax flaws
+  if (firstTokenUpper === "SELECT") {
+    // Typo in FORM instead of FROM: `SELECT * FORM ...`
+    if (/\bFORM\b/i.test(query)) {
+      let fixed = query.replace(/\bFORM\b/gi, "FROM");
+      if (!fixed.endsWith(";")) fixed += ";";
+      return fixed;
+    }
+    // Missing FROM: `SELECT * customers`
+    if (/^SELECT\s+\*\s+([a-zA-Z0-9_]+)/i.test(query) && !/\bFROM\b/i.test(query)) {
+      const match = query.match(/^SELECT\s+\*\s+([a-zA-Z0-9_]+)/i);
+      if (match) {
+        const tbl = findBestTableMatch(match[1], activeSchema) || match[1];
+        let fixed = `SELECT * FROM ${tbl}`;
+        if (!fixed.endsWith(";")) fixed += ";";
+        return fixed;
+      }
+    }
+    // Just SELECT or SELECT *
+    if (cleanUpper === "SELECT" || cleanUpper === "SELECT *") {
+      return `SELECT * FROM ${firstTable};`;
+    }
+  }
+
+  // Check `CREATE TABEL ...`
+  if (/^CREATE\s+TABEL\b/i.test(query)) {
+    let fixed = query.replace(/^CREATE\s+TABEL\b/i, "CREATE TABLE");
+    if (!fixed.endsWith(";")) fixed += ";";
+    return fixed;
+  }
+
+  // Check `DROP TABEL ...`
+  if (/^DROP\s+TABEL\b/i.test(query)) {
+    let fixed = query.replace(/^DROP\s+TABEL\b/i, "DROP TABLE");
+    if (!fixed.endsWith(";")) fixed += ";";
+    return fixed;
+  }
+
+  // Check `ALTER TABEL ...`
+  if (/^ALTER\s+TABEL\b/i.test(query)) {
+    let fixed = query.replace(/^ALTER\s+TABEL\b/i, "ALTER TABLE");
+    if (!fixed.endsWith(";")) fixed += ";";
+    return fixed;
+  }
+
+  // 4. PL/SQL Typos
+  const plsqlKeywords = [
+    {
+      kw: "DECLARE",
+      typos: ["DELCARE", "DECLEAR", "DECLRE", "DECLAR", "DECALRE"],
+      template: `DECLARE\n  v_counter NUMBER := 1;\nBEGIN\n  DBMS_OUTPUT.PUT_LINE(v_counter);\nEND;\n/`,
+    },
+    {
+      kw: "BEGIN",
+      typos: ["BGIN", "BEIGN", "BEG", "BEGGIN"],
+      template: `BEGIN\n  DBMS_OUTPUT.PUT_LINE('Hello World');\nEND;\n/`,
+    },
+  ];
+
+  for (const pl of plsqlKeywords) {
+    const isTypo = pl.typos.includes(firstTokenUpper);
+    const dist = levenshteinDist(firstTokenUpper, pl.kw);
+    if (isTypo || (dist <= 2 && firstTokenUpper.length >= 3 && firstTokenUpper !== pl.kw)) {
+      if (tokens.length > 1) {
+        let fixed = trimmed.replace(new RegExp(`^\\s*${tokens[0]}\\b`, "i"), pl.kw);
+        if (!fixed.endsWith(";") && !fixed.endsWith("/")) {
+          fixed += ";";
+        }
+        return fixed;
+      }
+      return pl.template;
+    }
+  }
+
+  // DBMS_OUTPUT typos
+  if (/DBMS[_\s]?OUTPUT[.\s]?(?:PUTLINE|PRINT|WRITE)/i.test(trimmed)) {
+    let fixed = trimmed.replace(/DBMS[_\s]?OUTPUT[.\s]?(?:PUTLINE|PRINT|WRITE)/gi, "DBMS_OUTPUT.PUT_LINE");
+    if (!fixed.endsWith(";") && !fixed.endsWith("/")) fixed += ";";
+    return fixed;
+  }
+  if (/^PUT_LINE\b/i.test(trimmed)) {
+    let fixed = trimmed.replace(/^PUT_LINE/i, "DBMS_OUTPUT.PUT_LINE");
+    if (!fixed.endsWith(";") && !fixed.endsWith("/")) fixed += ";";
+    return fixed;
+  }
+
+  // 5. Short natural language questions or commands
+  if (/^SHOW\b/i.test(trimmed) && tokens.length === 1) {
+    return "SHOW TABLES;";
+  }
+  if (/^TABLES?\b/i.test(trimmed) && tokens.length <= 2) {
+    return "SHOW TABLES;";
+  }
+  if (/^DATABASES?\b/i.test(trimmed) && tokens.length <= 2) {
+    return "SHOW DATABASES;";
+  }
+
+  // 6. If PL/SQL mode and user typed incomplete block
+  if (mode === "plsql") {
+    if (cleanUpper === "DECLARE") {
+      return `DECLARE\n  v_num NUMBER := 10;\nBEGIN\n  DBMS_OUTPUT.PUT_LINE(v_num);\nEND;\n/`;
+    }
+    if (cleanUpper === "BEGIN") {
+      return `BEGIN\n  DBMS_OUTPUT.PUT_LINE('NL2Query PL/SQL');\nEND;\n/`;
+    }
+  }
+
+  return null;
 }
 
 export function TerminalView({
@@ -258,6 +746,29 @@ export function TerminalView({
       setCmdHistory((prev) => [...prev, rawScript]);
       setHistoryIdx(-1);
 
+      // Helper to record an error with intelligent syntax suggestions
+      const pushError = (errorMsg: string, rawCmd: string = rawScript) => {
+        const suggestion = getCommandSuggestion(rawCmd, activeSchema, datasets, errorMsg, mode);
+        const lines = [errorMsg];
+        if (suggestion) {
+          lines.push("", "Did you mean?", ...suggestion.split("\n").map((s) => `  ${s}`));
+        }
+        setHistory((prev) => [
+          ...prev,
+          {
+            id: String(Date.now()),
+            type: "command",
+            commandText: rawScript,
+            lines: [],
+          },
+          {
+            id: String(Date.now() + 1),
+            type: "error",
+            lines,
+          },
+        ]);
+      };
+
       // 1. Check Meta-Commands
       if (upper === "EXIT" || upper === "QUIT" || upper === "Q") {
         onExit();
@@ -287,20 +798,7 @@ export function TerminalView({
             },
           ]);
         } else {
-          setHistory((prev) => [
-            ...prev,
-            {
-              id: String(Date.now()),
-              type: "command",
-              commandText: rawScript,
-              lines: [],
-            },
-            {
-              id: String(Date.now() + 1),
-              type: "error",
-              lines: ["Reset operation is not available for this session."],
-            },
-          ]);
+          pushError("Reset operation is not available for this session.");
         }
         return;
       }
@@ -415,15 +913,7 @@ export function TerminalView({
         const val = validateSqlIdentifier(rawTarget, "database");
 
         if (!val.isValid) {
-          setHistory((prev) => [
-            ...prev,
-            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-            {
-              id: String(Date.now() + 1),
-              type: "error",
-              lines: [`ERROR 1064 (42000): ${val.error}`],
-            },
-          ]);
+          pushError(`ERROR 1064 (42000): ${val.error}`);
           return;
         }
 
@@ -448,15 +938,7 @@ export function TerminalView({
             ]);
             return;
           }
-          setHistory((prev) => [
-            ...prev,
-            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-            {
-              id: String(Date.now() + 1),
-              type: "error",
-              lines: [`ERROR 1007 (HY000): Can't create database '${targetDbName}'; database exists.`],
-            },
-          ]);
+          pushError(`ERROR 1007 (HY000): Can't create database '${targetDbName}'; database exists.`);
           return;
         }
 
@@ -504,11 +986,7 @@ export function TerminalView({
         const ifExists = /IF\s+EXISTS/i.test(trimmed);
         const val = validateSqlIdentifier(rawTarget, "database");
         if (!val.isValid) {
-          setHistory((prev) => [
-            ...prev,
-            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-            { id: String(Date.now() + 1), type: "error", lines: [`ERROR 1064 (42000): ${val.error}`] },
-          ]);
+          pushError(`ERROR 1064 (42000): ${val.error}`);
           return;
         }
 
@@ -533,15 +1011,7 @@ export function TerminalView({
             ]);
             return;
           }
-          setHistory((prev) => [
-            ...prev,
-            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-            {
-              id: String(Date.now() + 1),
-              type: "error",
-              lines: [`ERROR 1008 (HY000): Can't drop database '${targetDbName}'; database doesn't exist.`],
-            },
-          ]);
+          pushError(`ERROR 1008 (HY000): Can't drop database '${targetDbName}'; database doesn't exist.`);
           return;
         }
 
@@ -565,15 +1035,7 @@ export function TerminalView({
       if (upper.startsWith("USE ")) {
         const target = trimmed.substring(4).replace(/;+$/, "").trim();
         if (!target) {
-          setHistory((prev) => [
-            ...prev,
-            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-            {
-              id: String(Date.now() + 1),
-              type: "error",
-              lines: ["Syntax error: USE requires database identifier. Example: USE ecommerce;"],
-            },
-          ]);
+          pushError("Syntax error: USE requires database identifier. Example: USE ecommerce;");
           return;
         }
 
@@ -599,28 +1061,12 @@ export function TerminalView({
               },
             ]);
           } else {
-            setHistory((prev) => [
-              ...prev,
-              { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-              {
-                id: String(Date.now() + 1),
-                type: "error",
-                lines: ["Database switching is unavailable in this session."],
-              },
-            ]);
+            pushError("Database switching is unavailable in this session.");
           }
         } else {
-          setHistory((prev) => [
-            ...prev,
-            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-            {
-              id: String(Date.now() + 1),
-              type: "error",
-              lines: [
-                `ERROR 1049 (42000): Unknown database '${target}'. Type 'SHOW DATABASES;' to view available workspace databases.`,
-              ],
-            },
-          ]);
+          pushError(
+            `ERROR 1049 (42000): Unknown database '${target}'. Type 'SHOW DATABASES;' to view available workspace databases.`
+          );
         }
         return;
       }
@@ -650,11 +1096,7 @@ export function TerminalView({
         const targetTableName = parts[1]?.toLowerCase();
         const found = activeSchema.find((t) => t.name.toLowerCase() === targetTableName);
         if (!found) {
-          setHistory((prev) => [
-            ...prev,
-            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-            { id: String(Date.now() + 1), type: "error", lines: [`ORA-00942: table or view '${parts[1]}' does not exist.`] },
-          ]);
+          pushError(`ORA-00942: table or view '${parts[1]}' does not exist.`);
           return;
         }
 
@@ -751,11 +1193,7 @@ export function TerminalView({
           const duration = Math.round(performance.now() - startTime);
 
           if (res.error) {
-            setHistory((prev) => [
-              ...prev,
-              { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-              { id: String(Date.now() + 1), type: "error", lines: [`PL/SQL Error: ${res.error}`] },
-            ]);
+            pushError(`PL/SQL Error: ${res.error}`);
             return;
           }
 
@@ -787,11 +1225,7 @@ export function TerminalView({
           ]);
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          setHistory((prev) => [
-            ...prev,
-            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-            { id: String(Date.now() + 1), type: "error", lines: [`Execution Error: ${msg}`] },
-          ]);
+          pushError(`Execution Error: ${msg}`);
         }
         return;
       }
@@ -803,11 +1237,7 @@ export function TerminalView({
         const duration = Math.round(performance.now() - startTime);
 
         if (res.error) {
-          setHistory((prev) => [
-            ...prev,
-            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-            { id: String(Date.now() + 1), type: "error", lines: [`SQL Error: ${res.error}`] },
-          ]);
+          pushError(`SQL Error: ${res.error}`);
           return;
         }
 
@@ -851,14 +1281,10 @@ export function TerminalView({
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        setHistory((prev) => [
-          ...prev,
-          { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
-          { id: String(Date.now() + 1), type: "error", lines: [`Runtime Error: ${msg}`] },
-        ]);
+        pushError(`Runtime Error: ${msg}`);
       }
     },
-    [activeSchema, cmdHistory, datasetName, mode, onExit, onReset, onUpdateSchema]
+    [activeSchema, cmdHistory, datasetName, datasets, mode, onExit, onReset, onUpdateSchema]
   );
 
   // Handle Input submission & Multi-line buffer logic
@@ -1170,11 +1596,52 @@ export function TerminalView({
                       : undefined,
                 }}
               >
-                {entry.lines.map((l, lIdx) => (
-                  <div key={lIdx} className="whitespace-pre">
-                    {l}
-                  </div>
-                ))}
+                {entry.lines.map((l, lIdx) => {
+                  const isDidYouMeanHeader = l.trim().toLowerCase() === "did you mean?";
+                  const isSuggestionLine =
+                    !isDidYouMeanHeader &&
+                    entry.lines.slice(0, lIdx).some((prev) => prev.trim().toLowerCase() === "did you mean?");
+
+                  if (entry.type === "error" && isDidYouMeanHeader) {
+                    return (
+                      <div
+                        key={lIdx}
+                        className={`whitespace-pre font-bold mt-1.5 ${
+                          isDark ? "text-amber-400" : "text-amber-600 font-extrabold"
+                        }`}
+                      >
+                        {l}
+                      </div>
+                    );
+                  }
+
+                  if (entry.type === "error" && isSuggestionLine) {
+                    return (
+                      <div
+                        key={lIdx}
+                        onClick={() => {
+                          const cleanCmd = l.trim().replace(/^\/\s*$/, "").trim();
+                          if (cleanCmd) {
+                            setCurrentInput(cleanCmd);
+                            inputRef.current?.focus();
+                          }
+                        }}
+                        title="Click to insert into terminal input"
+                        className={`whitespace-pre font-semibold transition-colors cursor-pointer hover:underline ${
+                          isDark ? "text-sky-300 hover:text-sky-200" : "text-sky-600 hover:text-sky-800"
+                        }`}
+                      >
+                        {l}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={lIdx} className="whitespace-pre">
+                      {l}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

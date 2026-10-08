@@ -92,7 +92,7 @@ export function LeaderboardView({ mode: propMode }: LeaderboardViewProps = {}) {
             <div className="flex items-center gap-2 mb-1">
               <span className="text-2xl">🏆</span>
               <h2
-                className="text-xl sm:text-2xl font-white tracking-tight"
+                className="text-xl sm:text-2xl text-white font-bold tracking-tight"
               >
                 Global SQL & PL/SQL Leaderboard
               </h2>
@@ -261,8 +261,8 @@ export function LeaderboardView({ mode: propMode }: LeaderboardViewProps = {}) {
                     <tr
                       key={user.id}
                       className={`transition-colors ${isCurrent
-                          ? "bg-sky-500/10 hover:bg-sky-500/15"
-                          : "hover:bg-zinc-800/40"
+                        ? "bg-sky-500/10 hover:bg-sky-500/15"
+                        : "hover:bg-zinc-800/40"
                         }`}
                     >
                       {/* Rank Column */}
