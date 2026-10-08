@@ -147,13 +147,18 @@ export function UserAuthButton() {
     >
       {/* Avatar + Streak Pill Trigger */}
       <div
-        className="flex items-center gap-2 p-1 pl-2.5 rounded-full border bg-zinc-900/60 dark:bg-zinc-900/80 border-zinc-700/60 hover:border-zinc-500 cursor-pointer transition-all shadow-xs"
+        className="flex items-center gap-2 p-1 pl-2.5 rounded-full border cursor-pointer transition-all shadow-xs hover:border-[var(--accent)]"
+        style={{
+          background: "var(--surface-subtle)",
+          borderColor: "var(--border)",
+          color: "var(--foreground)",
+        }}
         id="header-user-avatar"
       >
         {/* Streak Indicator */}
-        <div className="flex items-center gap-1 text-xs font-mono font-bold text-amber-400">
+        <div className="flex items-center gap-1 text-xs font-mono font-bold">
           <span className="text-sm">🔥</span>
-          <span>{streak}</span>
+          <span style={{ color: "var(--foreground)" }}>{streak}</span>
         </div>
 
         {/* User Image / Initials */}
@@ -175,15 +180,15 @@ export function UserAuthButton() {
         <div
           className="absolute right-0 mt-2 w-72 rounded-2xl border p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-md"
           style={{
-            background: "var(--panel, #18181b)",
-            borderColor: "var(--border, #27272a)",
-            color: "var(--foreground, #fafafa)",
+            background: "var(--panel)",
+            borderColor: "var(--border)",
+            color: "var(--foreground)",
           }}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
           {/* User Info Header */}
-          <div className="flex items-center gap-3 pb-3 border-b border-zinc-800/80">
+          <div className="flex items-center gap-3 pb-3 border-b" style={{ borderColor: "var(--border)" }}>
             <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-gradient-to-tr from-sky-500 to-indigo-600 border border-sky-400/50 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-md">
               {user.image ? (
                 <img
@@ -196,53 +201,68 @@ export function UserAuthButton() {
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-bold truncate leading-tight">
+              <h3 className="text-sm font-bold truncate leading-tight" style={{ color: "var(--foreground)" }}>
                 {user.name || "NL2Query Learner"}
               </h3>
-              <p className="text-[11px] text-zinc-400 truncate mt-0.5">{user.email}</p>
+              <p className="text-xs truncate mt-0.5" style={{ color: "var(--muted)" }}>{user.email}</p>
             </div>
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-2 my-3 font-mono">
+          <div className="grid grid-cols-2 gap-2.5 my-3 font-mono">
             {/* Streak Card */}
-            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-col">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-400 uppercase tracking-wider">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 dark:border-amber-500/30 flex flex-col">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
                 <span>🔥</span>
                 <span>Streak</span>
               </div>
-              <p className="text-base font-black text-amber-300 mt-1">
+              <p className="text-base font-black text-amber-800 dark:text-amber-300 mt-1">
                 {streak} {streak === 1 ? "Day" : "Days"}
               </p>
-              <span className="text-[10px] text-zinc-400 font-sans mt-0.5">
+              <span className="text-[11px] font-sans mt-0.5" style={{ color: "var(--muted)" }}>
                 Daily Quiz Active
               </span>
             </div>
 
             {/* Leaderboard Rank Card */}
-            <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 flex flex-col">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-400 uppercase tracking-wider">
-                <span>🏆</span>
+            <div className="p-2.5 rounded-xl bg-sky-500/10 dark:bg-sky-500/15 border border-sky-500/25 dark:border-sky-500/30 flex flex-col">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-700 dark:text-sky-400 uppercase tracking-wider">
+
                 <span>Leaderboard</span>
               </div>
-              <p className="text-base font-black text-sky-300 mt-1">
+              <p className="text-base font-black text-sky-800 dark:text-sky-300 mt-1">
                 {rank !== "-" ? `#${rank}` : "Unranked"}
               </p>
-              <span className="text-[10px] text-zinc-400 font-sans mt-0.5">
+              <span className="text-[11px] font-sans mt-0.5" style={{ color: "var(--muted)" }}>
                 {stats?.totalParticipants ? `of ${stats.totalParticipants} users` : "Take a quiz"}
               </span>
             </div>
           </div>
 
           {/* Additional Quick Stats */}
-          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-zinc-900/60 border border-zinc-800 text-xs text-zinc-300 mb-3 font-mono">
+          <div
+            className="flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-xs mb-3 font-mono"
+            style={{
+              background: "var(--surface-subtle)",
+              borderColor: "var(--border)",
+              color: "var(--foreground)",
+            }}
+          >
             <div>
-              <span className="text-zinc-500 text-[10px] block">TOTAL SCORE</span>
-              <span className="font-bold text-emerald-400">{stats?.totalScore ?? 0} pts</span>
+              <span className="text-[10px] block font-semibold tracking-wider uppercase opacity-75" style={{ color: "var(--muted)" }}>
+                TOTAL SCORE
+              </span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                {stats?.totalScore ?? 0} pts
+              </span>
             </div>
             <div className="text-right">
-              <span className="text-zinc-500 text-[10px] block">QUIZZES SOLVED</span>
-              <span className="font-bold text-indigo-400">{stats?.quizzesTaken ?? 0}</span>
+              <span className="text-[10px] block font-semibold tracking-wider uppercase opacity-75" style={{ color: "var(--muted)" }}>
+                QUIZZES SOLVED
+              </span>
+              <span className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">
+                {stats?.quizzesTaken ?? 0}
+              </span>
             </div>
           </div>
 
@@ -251,12 +271,12 @@ export function UserAuthButton() {
             type="button"
             onClick={handleSignOut}
             disabled={isLoggingOut}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/25 dark:border-rose-500/30 text-xs font-semibold transition-all cursor-pointer disabled:opacity-60"
           >
             {isLoggingOut ? (
-              <div className="w-3.5 h-3.5 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+              <div className="w-3.5 h-3.5 border-2 border-rose-600 dark:border-rose-400 border-t-transparent rounded-full animate-spin" />
             ) : (
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
             )}

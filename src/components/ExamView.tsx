@@ -873,7 +873,7 @@ export function ExamView({
                         style={{
                           background: isSolutionExpanded ? "rgba(16, 185, 129, 0.12)" : "var(--surface-subtle)",
                           borderColor: isSolutionExpanded ? "rgba(16, 185, 129, 0.4)" : "var(--border)",
-                          color: isSolutionExpanded ? (mode === "sql" ? "#0284c7" : "#ea580c") : "var(--foreground)",
+                          color: "var(--foreground)",
                         }}
                       >
                         <svg

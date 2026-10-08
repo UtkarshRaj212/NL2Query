@@ -56,7 +56,8 @@ export function AuthModal({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 transition-colors cursor-pointer"
+          className="absolute top-4 right-4 p-2 rounded-lg opacity-70 hover:opacity-100 hover:bg-[var(--surface-subtle)] transition-colors cursor-pointer"
+          style={{ color: "var(--foreground)" }}
           aria-label="Close modal"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -71,14 +72,21 @@ export function AuthModal({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">{title}</h2>
-          <p className="mt-2 text-xs sm:text-sm text-zinc-400 leading-relaxed max-w-xs mx-auto">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>{title}</h2>
+          <p className="mt-2 text-xs sm:text-sm leading-relaxed max-w-xs mx-auto" style={{ color: "var(--muted)" }}>
             {subtitle}
           </p>
         </div>
 
         {/* Feature Highlights */}
-        <div className="space-y-2.5 mb-6 bg-zinc-900/50 dark:bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-3.5 text-xs text-zinc-300">
+        <div
+          className="space-y-2.5 mb-6 border rounded-xl p-3.5 text-xs"
+          style={{
+            background: "var(--surface-subtle)",
+            borderColor: "var(--border)",
+            color: "var(--foreground)",
+          }}
+        >
           <div className="flex items-center gap-2.5">
             <span className="text-base shrink-0">🔥</span>
             <span>Maintain your <strong>daily quiz streak</strong> and level up.</span>
@@ -94,7 +102,7 @@ export function AuthModal({
         </div>
 
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center">
+          <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs text-center font-medium">
             {error}
           </div>
         )}
@@ -104,7 +112,7 @@ export function AuthModal({
           onClick={handleGoogleSignIn}
           disabled={isLoading}
           type="button"
-          className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 font-semibold text-sm shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+          className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 font-semibold text-sm shadow-md hover:shadow-lg border border-zinc-200 dark:border-transparent transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
         >
           {isLoading ? (
             <div className="w-5 h-5 border-2 border-zinc-900 border-t-transparent rounded-full animate-spin" />
@@ -131,7 +139,7 @@ export function AuthModal({
           <span>{isLoading ? "Connecting to Google..." : "Continue with Google"}</span>
         </button>
 
-        <p className="mt-4 text-center text-[11px] text-zinc-500">
+        <p className="mt-4 text-center text-[11px]" style={{ color: "var(--muted)" }}>
           By signing in, you agree to our Terms of Service & Privacy Policy.
         </p>
       </div>
