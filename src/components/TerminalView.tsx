@@ -1,10 +1,16 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import type { Table, Column, Dataset } from "@/lib/schema";
+import { cloneSchema, type Table, type Column, type Dataset } from "@/lib/schema";
 import { executeSQL, levenshteinDist, type QueryResult, type Row } from "@/lib/sqlEngine";
 import { executePLSQL, type PLSQLResult } from "@/lib/plsqlEngine";
 import { validateSqlIdentifier } from "@/lib/sqlNamingRules";
+
+interface UndoItem {
+  schema: Table[];
+  command: string;
+  timestamp: number;
+}
 
 interface TerminalViewProps {
   activeSchema: Table[];
@@ -341,6 +347,13 @@ export function getCommandSuggestion(
       aliases: ["REEST", "RESTE", "RESTART", "RESTORE", "RESET DB"],
     },
     {
+      target: "UNDO",
+      syntax: "UNDO;",
+      aliases: [
+        "UNDOO", "UND", "UNOD", "ROLLBACK", "ROLBACK", "REVERT", "ROLL BACK", "UNDO ACTION", "UNDO LAST",
+      ],
+    },
+    {
       target: "EXIT",
       syntax: "EXIT;",
       aliases: ["EXT", "EXITT", "QUITT", "QT", "BYE", "CLOSE", "QUIT"],
@@ -610,6 +623,31 @@ export function TerminalView({
   const inputRef = useRef<HTMLInputElement>(null);
   const prevDatasetRef = useRef(datasetName);
 
+  const [undoStack, setUndoStack] = useState<UndoItem[]>([]);
+  const undoStackRef = useRef<UndoItem[]>([]);
+
+  // Push previous schema snapshot to undo stack before a DDL/DML mutation
+  const pushUndo = useCallback((prevSchema: Table[], commandSummary: string) => {
+    const newEntry: UndoItem = {
+      schema: cloneSchema(prevSchema),
+      command: commandSummary,
+      timestamp: Date.now(),
+    };
+    const next = [...undoStackRef.current, newEntry].slice(-50);
+    undoStackRef.current = next;
+    setUndoStack(next);
+  }, []);
+
+  // Pop and retrieve the most recent schema snapshot
+  const popUndo = useCallback((): UndoItem | null => {
+    if (undoStackRef.current.length === 0) return null;
+    const last = undoStackRef.current[undoStackRef.current.length - 1];
+    const next = undoStackRef.current.slice(0, -1);
+    undoStackRef.current = next;
+    setUndoStack(next);
+    return last;
+  }, []);
+
   // Initialize history from sessionStorage or welcome banner on client mount
   useEffect(() => {
     if (isInitializedRef.current) return;
@@ -637,7 +675,7 @@ export function TerminalView({
         `  Connected Session : ${mode.toUpperCase()} Console`,
         `  Active Dataset    : ${datasetName.toUpperCase()} (${activeSchema.length} tables loaded: ${activeSchema.map((t) => t.name).join(", ") || "None"})`,
         "  Multi-line Buffer : Supported (type ';' or '/' on a new line to execute).",
-        "  Quick Commands    : HELP, SHOW DATABASES, SHOW TABLES, USE <db>, DESC <table>, CLEAR, EXIT",
+        "  Quick Commands    : HELP, UNDO, SHOW DATABASES, SHOW TABLES, USE <db>, DESC <table>, CLEAR, EXIT",
         "=========================================================================================",
       ];
 
@@ -708,6 +746,8 @@ export function TerminalView({
   useEffect(() => {
     if (!isInitializedRef.current) return;
     if (prevDatasetRef.current !== datasetName) {
+      undoStackRef.current = [];
+      setUndoStack([]);
       setHistory((prev) => [
         ...prev,
         {
@@ -780,8 +820,50 @@ export function TerminalView({
         return;
       }
 
+      if (
+        upper === "UNDO" ||
+        upper === "ROLLBACK" ||
+        upper.startsWith("UNDO ") ||
+        upper.startsWith("ROLLBACK ")
+      ) {
+        const lastAction = popUndo();
+        if (!lastAction) {
+          setHistory((prev) => [
+            ...prev,
+            { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
+            {
+              id: String(Date.now() + 1),
+              type: "info",
+              lines: [
+                "Nothing to undo: No previous DDL/DML actions recorded in this session.",
+                "Tip: DDL statements (CREATE, DROP, ALTER, TRUNCATE) and DML statements (INSERT, UPDATE, DELETE) can be undone.",
+              ],
+            },
+          ]);
+          return;
+        }
+
+        onUpdateSchema(lastAction.schema);
+
+        const remaining = undoStackRef.current.length;
+        setHistory((prev) => [
+          ...prev,
+          { id: String(Date.now()), type: "command", commandText: rawScript, lines: [] },
+          {
+            id: String(Date.now() + 1),
+            type: "success",
+            lines: [
+              `Undo successful: Reverted last action [${lastAction.command}].`,
+              `Schema and table data restored to previous state. (${remaining} undo step${remaining === 1 ? "" : "s"} remaining)`,
+            ],
+          },
+        ]);
+        return;
+      }
+
       if (upper === "RESET") {
         if (onReset) {
+          pushUndo(activeSchema, "RESET DATABASE");
           onReset();
           setHistory((prev) => [
             ...prev,
@@ -794,7 +876,10 @@ export function TerminalView({
             {
               id: String(Date.now() + 1),
               type: "success",
-              lines: ["Database reset: active schema restored to original dataset defaults."],
+              lines: [
+                "Database reset: active schema restored to original dataset defaults.",
+                "Tip: You can type 'UNDO' if you wish to revert this reset.",
+              ],
             },
           ]);
         } else {
@@ -826,6 +911,7 @@ export function TerminalView({
           "  /                                                  Slash or semicolon executes block",
           "",
           "META UTILITIES:",
+          "  UNDO | ROLLBACK                                    Undo last DDL or DML statement and restore previous state",
           "  SHOW DATABASES | SHOW DATASETS                     List all available workspace datasets",
           "  USE <database_id | name>                           Switch active database/dataset",
           "  SHOW TABLES | \\dt                                  List all workspace tables & row counts",
@@ -834,6 +920,7 @@ export function TerminalView({
           "  HISTORY                                            View session command history",
           "  EXPORT                                             Download database as .sql file",
           "  CLEAR | CLS                                        Clear the screen",
+          "  RESET                                              Reset active database to original defaults",
           "  EXIT | QUIT                                        Return to graphical workspace (or press ESC)",
           "-----------------------------------------------------------------------------------------",
         ];
@@ -1199,6 +1286,10 @@ export function TerminalView({
 
           // If schema was updated (e.g. DML inside PL/SQL)
           if (res.updatedSchema) {
+            const isChanged = JSON.stringify(activeSchema) !== JSON.stringify(res.updatedSchema);
+            if (isChanged) {
+              pushUndo(activeSchema, "PL/SQL procedural block");
+            }
             onUpdateSchema(res.updatedSchema);
           }
 
@@ -1242,7 +1333,19 @@ export function TerminalView({
         }
 
         // Mutation update
-        if (res.updatedSchema) {
+        const isMutation =
+          res.statementType === "DML" ||
+          res.statementType === "DDL" ||
+          res.command !== "SELECT";
+        const isChanged =
+          Boolean(res.updatedSchema) &&
+          JSON.stringify(activeSchema) !== JSON.stringify(res.updatedSchema);
+
+        if (res.updatedSchema && (isMutation || isChanged)) {
+          if (isChanged) {
+            const summary = trimmed.replace(/\s+/g, " ").slice(0, 60);
+            pushUndo(activeSchema, summary);
+          }
           onUpdateSchema(res.updatedSchema);
         }
 
@@ -1284,7 +1387,7 @@ export function TerminalView({
         pushError(`Runtime Error: ${msg}`);
       }
     },
-    [activeSchema, cmdHistory, datasetName, datasets, mode, onExit, onReset, onUpdateSchema]
+    [activeSchema, cmdHistory, datasetName, datasets, mode, onExit, onReset, onUpdateSchema, pushUndo, popUndo]
   );
 
   // Handle Input submission & Multi-line buffer logic
@@ -1355,10 +1458,13 @@ export function TerminalView({
             "SHOW TABLES", "\\DT", "SHOW ALL",
             "SHOW DATABASES", "SHOW DATASETS", "SHOW SCHEMAS", "DATABASES", "DATASETS",
             "SCHEMA", "HISTORY", "RESET", "EXPORT",
+            "UNDO", "ROLLBACK",
           ].includes(cleanLine) ||
           cleanLine.startsWith("USE ") ||
           cleanLine.startsWith("DESC ") ||
-          cleanLine.startsWith("DESCRIBE ")
+          cleanLine.startsWith("DESCRIBE ") ||
+          cleanLine.startsWith("UNDO ") ||
+          cleanLine.startsWith("ROLLBACK ")
         );
 
       if (isMeta) {
@@ -1463,6 +1569,37 @@ export function TerminalView({
             title="Show Terminal Commands"
           >
             HELP
+          </button>
+
+          {/* Undo Action Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              executeCommand("UNDO");
+            }}
+            disabled={undoStack.length === 0}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded border transition-colors text-xs font-semibold whitespace-nowrap ${
+              undoStack.length === 0
+                ? isDark
+                  ? "bg-[#1c1c1c] text-zinc-600 border-[#2b2b2b] cursor-not-allowed opacity-60"
+                  : "bg-zinc-100 text-zinc-400 border-zinc-200 cursor-not-allowed opacity-60"
+                : isDark
+                  ? "bg-[#2b2416] hover:bg-[#382f1b] text-amber-400 hover:text-amber-300 border-amber-600/50 cursor-pointer shadow-2xs"
+                  : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 cursor-pointer shadow-2xs"
+            }`}
+            title={
+              undoStack.length > 0
+                ? `Undo last action (${undoStack.length} step${undoStack.length > 1 ? "s" : ""} available)`
+                : "No DDL/DML actions to undo (type UNDO)"
+            }
+          >
+            <span>UNDO</span>
+            {undoStack.length > 0 && (
+              <span className="text-[10px] px-1 py-0.2 rounded-full bg-amber-500/20 text-amber-500 font-bold">
+                {undoStack.length}
+              </span>
+            )}
           </button>
 
           {/* Show Databases Button */}
