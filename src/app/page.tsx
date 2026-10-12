@@ -43,18 +43,17 @@ function PanelDivider() {
       <div
         className="hidden md:block absolute top-0 bottom-0 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
         style={{
-          width: "0px",
           background:
-            "linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.10) 20%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.10) 80%, transparent 100%)",
+            "linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 80%, transparent 100%)",
         }}
       />
       {/* Mobile */}
       <div
         className="flex md:hidden absolute left-0 right-0 top-1/2 -translate-y-1/2 z-30 pointer-events-none"
         style={{
-          height: "0px",
+          height: "1px",
           background:
-            "linear-gradient(to right, transparent 0%, rgba(255,255,255,0.10) 20%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.10) 80%, transparent 100%)",
+            "linear-gradient(to right, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 80%, transparent 100%)",
         }}
       />
     </>
@@ -126,24 +125,23 @@ function PanelButton({
 export default function App() {
   return (
     <div
-      className="relative w-full h-screen overflow-hidden bg-[#050810]"
+      className="relative w-full h-[100dvh] overflow-hidden bg-[#050810]"
       style={{ fontFamily: "'Outfit', var(--font-geist-sans), sans-serif" }}
     >
       {/* Unified continuous FaultyTerminal WebGL background spanning the full screen */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <FaultyTerminal
-          tintLeft="#00ccffff"
-          tintRight="#f4db3eff"
+          tintLeft="#11adc5a4"
+          tintRight="#8410a7d9"
           splitRatio={0.5}
           splitSmoothness={0.14}
+          splitDirection="auto"
           scale={1}
           gridMul={[2.5, 1.25]}
           digitSize={0.8}
           timeScale={0.5}
           pause={false}
           scanlineIntensity={0.3}
-          // glitchAmount={1}
-          // flickerAmount={1}
           noiseAmp={1}
           chromaticAberration={0}
           dither={0}
@@ -155,16 +153,16 @@ export default function App() {
         />
       </div>
 
-      <div className="absolute top-8 sm:top-12 left-1/2 -translate-x-1/2 z-30 pointer-events-none select-none text-center">
+      <div className="absolute top-5 sm:top-8 md:top-12 left-1/2 -translate-x-1/2 z-30 pointer-events-none select-none text-center w-full px-4">
         <TypewriterHeading
           text="NL2QUERY"
           className="font-extrabold leading-none tracking-tight text-white"
           style={{
-            fontSize: "clamp(3.2rem, 8vw, 6.5rem)",
+            fontSize: "clamp(2.4rem, 6.5vw, 6.5rem)",
             textShadow:
-              "0 0 20px rgba(0,0,0,0.45), " +
-              "0 0 45px rgba(0,0,0,0.28), " +
-              "0 0 70px rgba(0,0,0,0.15)",
+              "0 0 20px rgba(0,0,0,0.5), " +
+              "0 0 45px rgba(0,0,0,0.3), " +
+              "0 0 70px rgba(0,0,0,0.18)",
             letterSpacing: "-0.01em",
           }}
         />
@@ -177,7 +175,7 @@ export default function App() {
       <div className="relative z-10 w-full h-full flex flex-col md:flex-row pointer-events-auto">
 
         {/* ══ LEFT / TOP: SQL ════════════════════════════════════════════ */}
-        <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden" style={{ minHeight: "50vh" }}>
+        <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden">
           {/* Subtle dark radial glow for SQL side */}
           <div
             className="absolute inset-0 z-10 pointer-events-none"
@@ -192,20 +190,20 @@ export default function App() {
             className="absolute inset-0 z-10 pointer-events-none"
             style={{
               background:
-                "radial-gradient(ellipse at 50% 55%, rgba(0,237,255,0.15) 0%, transparent 65%)",
+                "radial-gradient(ellipse at 50% 55%, rgba(17,173,197,0.14) 0%, transparent 65%)",
             }}
           />
 
           {/* Content */}
-          <div className="relative z-20 w-full h-full flex flex-col items-center justify-center px-8 sm:px-12 pt-16 sm:pt-20">
-            <div className="flex flex-col items-center gap-3 sm:gap-4 text-center">
+          <div className="relative z-20 w-full h-full flex flex-col items-center justify-center px-6 sm:px-12 pt-16 sm:pt-20 md:pt-20 pb-2 md:pb-0">
+            <div className="flex flex-col items-center gap-2.5 sm:gap-4 text-center">
               {/* Badge */}
               <span
                 className="text-[10px] sm:text-xs px-3 py-1 rounded-lg border backdrop-blur-md"
                 style={{
                   color: "#c8f6ff",
-                  borderColor: "rgba(0,237,255,0.3)",
-                  background: "rgba(0,237,255,0.07)",
+                  borderColor: "rgba(17,173,197,0.35)",
+                  background: "rgba(17,173,197,0.08)",
                   fontFamily: "'JetBrains Mono', var(--font-geist-mono), monospace",
                   letterSpacing: "0.05em",
                 }}
@@ -218,7 +216,7 @@ export default function App() {
                 text="SQL"
                 className="font-bold leading-none tracking-tight"
                 style={{
-                  fontSize: "clamp(2.5rem, 6vw, 4.75rem)",
+                  fontSize: "clamp(2.2rem, 5.5vw, 4.75rem)",
                   color: "#F3FBFF",
                   textShadow:
                     "0 0 20px rgba(0,0,0,0.45), " +
@@ -232,9 +230,9 @@ export default function App() {
                 <PanelButton
                   href="/sql"
                   label="Open SQL"
-                  accentColor="0,237,255"
-                  borderColor="rgba(0,237,255,0.35)"
-                  shadowColor="rgba(0,237,255,0.15)"
+                  accentColor="17,173,197"
+                  borderColor="rgba(17,173,197,0.35)"
+                  shadowColor="rgba(17,173,197,0.18)"
                 />
               </div>
             </div>
@@ -242,35 +240,35 @@ export default function App() {
         </div>
 
         {/* ══ RIGHT / BOTTOM: PL/SQL ═════════════════════════════════════ */}
-        <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden" style={{ minHeight: "50vh" }}>
+        <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden">
           {/* Subtle dark radial glow for PL/SQL side */}
           <div
             className="absolute inset-0 z-10 pointer-events-none"
             style={{
               background:
-                "radial-gradient(ellipse at 50% 50%, rgba(20,15,0,0.03) 0%, rgba(5,8,16,0.05) 100%)",
+                "radial-gradient(ellipse at 50% 50%, rgba(20,5,25,0.03) 0%, rgba(5,8,16,0.05) 100%)",
             }}
           />
 
-          {/* Gold glow at center */}
+          {/* Purple glow at center */}
           <div
             className="absolute inset-0 z-10 pointer-events-none"
             style={{
               background:
-                "radial-gradient(ellipse at 50% 55%, rgba(234,179,8,0.08) 0%, transparent 65%)",
+                "radial-gradient(ellipse at 50% 55%, rgba(132,16,167,0.14) 0%, transparent 65%)",
             }}
           />
 
           {/* Content */}
-          <div className="relative z-20 w-full h-full flex flex-col items-center justify-center px-8 sm:px-12 pt-16 sm:pt-20">
-            <div className="flex flex-col items-center gap-3 sm:gap-4 text-center">
+          <div className="relative z-20 w-full h-full flex flex-col items-center justify-center px-6 sm:px-12 pt-2 sm:pt-4 md:pt-20 pb-10 sm:pb-12 md:pb-0">
+            <div className="flex flex-col items-center gap-2.5 sm:gap-4 text-center">
               {/* Badge */}
               <span
                 className="text-[10px] sm:text-xs px-3 py-1 rounded-lg border backdrop-blur-md"
                 style={{
-                  color: "#fef3c7",
-                  borderColor: "rgba(234,179,8,0.3)",
-                  background: "rgba(234,179,8,0.07)",
+                  color: "#f3e8ff",
+                  borderColor: "rgba(132,16,167,0.35)",
+                  background: "rgba(132,16,167,0.08)",
                   fontFamily: "'JetBrains Mono', var(--font-geist-mono), monospace",
                   letterSpacing: "0.05em",
                 }}
@@ -283,8 +281,8 @@ export default function App() {
                 text="PL/SQL"
                 className="font-bold leading-none tracking-tight"
                 style={{
-                  fontSize: "clamp(2.5rem, 6vw, 4.75rem)",
-                  color: "#FFFDF0",
+                  fontSize: "clamp(2.2rem, 5.5vw, 4.75rem)",
+                  color: "#FDF4FF",
                   textShadow:
                     "0 0 20px rgba(0,0,0,0.45), " +
                     "0 0 45px rgba(0,0,0,0.28), " +
@@ -292,22 +290,14 @@ export default function App() {
                 }}
               />
 
-              {/* Subline
-              <p
-                className="text-xs sm:text-sm font-light tracking-wide max-w-xs mx-auto"
-                style={{ color: "rgba(254,243,199,0.75)" }}
-              >
-                Define how it happens.
-              </p> */}
-
               {/* CTA button */}
               <div className="mt-1 sm:mt-2">
                 <PanelButton
                   href="/plsql"
                   label="Open PL/SQL"
-                  accentColor="234,179,8"
-                  borderColor="rgba(234,179,8,0.35)"
-                  shadowColor="rgba(234,179,8,0.15)"
+                  accentColor="132,16,167"
+                  borderColor="rgba(132,16,167,0.4)"
+                  shadowColor="rgba(132,16,167,0.2)"
                 />
               </div>
             </div>

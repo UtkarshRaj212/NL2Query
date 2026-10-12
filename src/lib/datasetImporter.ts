@@ -760,6 +760,12 @@ export async function parseSqliteDBToTables(
         // ignore FK query errors
       }
 
+      // Sanitize columns and build column mapping
+      const rawColNames = (columns.length > 0 ? columns : []).map((c) => c.name);
+      const cleanColNames = sanitizeColumns(rawColNames);
+      const colMap = new Map<string, string>();
+      rawColNames.forEach((raw, i) => colMap.set(raw, cleanColNames[i]));
+
       // Query rows
       const dataRes = db.exec(`SELECT * FROM "${tblName.replace(/"/g, '""')}";`);
       const rows: Record<string, string | number>[] = [];
@@ -768,7 +774,9 @@ export async function parseSqliteDBToTables(
         const resCols = dataRes[0].columns;
         // ensure columns are recorded if table_info was empty
         if (columns.length === 0) {
-          for (const c of resCols) {
+          const cleanResCols = sanitizeColumns(resCols);
+          resCols.forEach((raw, i) => colMap.set(raw, cleanResCols[i]));
+          for (const c of cleanResCols) {
             columns.push({ name: c, type: "TEXT" });
           }
         }
@@ -777,11 +785,12 @@ export async function parseSqliteDBToTables(
           const rowObj: Record<string, string | number> = {};
           let allEmpty = true;
           for (let i = 0; i < resCols.length; i++) {
-            const colName = resCols[i];
+            const rawColName = resCols[i];
+            const cleanColName = colMap.get(rawColName) || sanitizeIdentifier(rawColName, "col_data");
             const rawVal = rVals[i];
             if (rawVal !== null && rawVal !== undefined) {
               allEmpty = false;
-              rowObj[colName] = typeof rawVal === "number" ? rawVal : String(rawVal);
+              rowObj[cleanColName] = typeof rawVal === "number" ? rawVal : String(rawVal);
             } else {
               totalCleaned++;
             }
@@ -794,9 +803,21 @@ export async function parseSqliteDBToTables(
         }
       }
 
+      const cleanTblName = sanitizeIdentifier(tblName, "tbl_data");
+      const sanitizedColumns: Column[] = columns.map((c, i) => ({
+        ...c,
+        name: cleanColNames[i] || sanitizeIdentifier(c.name, "col_data"),
+        fk: c.fk
+          ? {
+              table: sanitizeIdentifier(c.fk.table, "tbl_data"),
+              column: sanitizeIdentifier(c.fk.column, "col_data"),
+            }
+          : undefined,
+      }));
+
       tables.push({
-        name: tblName,
-        columns,
+        name: cleanTblName,
+        columns: sanitizedColumns,
         rows,
       });
     }

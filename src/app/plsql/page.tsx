@@ -863,7 +863,11 @@ export default function PlSqlPage() {
           <PlSqlLearnView onBackToWorkspace={() => setActiveSection("workspace")} />
         )}
         {activeSection === "help" && (
-          <PlSqlHelpView onBackToWorkspace={() => setActiveSection("workspace")} />
+          <PlSqlHelpView
+            onBackToWorkspace={() => setActiveSection("workspace")}
+            onNavigateSection={(section) => setActiveSection(section)}
+            onOpenTerminal={() => setIsTerminalMode(true)}
+          />
         )}
         {activeSection === "developedBy" && <DevelopedByView />}
       </div>

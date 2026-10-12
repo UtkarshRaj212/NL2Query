@@ -31,8 +31,6 @@ export function ImportDatasetModal({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null;
-
   const resetState = () => {
     setIsDragging(false);
     setIsLoading(false);
@@ -65,7 +63,8 @@ export function ImportDatasetModal({
       } else {
         setParsedDataset(result.dataset);
         setStats(result.stats || null);
-        setDatasetName(result.dataset.name);
+        const initialName = suggestValidSqlIdentifier(result.dataset.name, "database");
+        setDatasetName(initialName);
         setDescription(result.dataset.description);
         setActiveTableIdx(0);
       }
@@ -144,6 +143,8 @@ export function ImportDatasetModal({
     onImportDataset(finalDataset);
     handleClose();
   };
+
+  if (!isOpen) return null;
 
   const currentTable: Table | undefined = parsedDataset?.schema[activeTableIdx];
 

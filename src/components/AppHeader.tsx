@@ -6,6 +6,7 @@ import Image from "next/image";
 import Logo from "../../public/Logo.png";
 
 import Link from "next/link";
+import { UserAuthButton } from "./UserAuthButton";
 
 export type NavSection = "workspace" | "download" | "quiz" | "exam" | "learn" | "help" | "developedBy";
 
@@ -262,6 +263,9 @@ export function AppHeader({
               <span className="hidden xs:inline sm:inline">{isTerminalMode ? "GUI Mode" : "Terminal"}</span>
             </button>
           )}
+
+          {/* User Auth & Streak Profile Button */}
+          <UserAuthButton />
 
           {/* Light / Dark Mode Toggle Button */}
           <button

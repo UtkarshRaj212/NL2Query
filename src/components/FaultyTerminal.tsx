@@ -38,6 +38,7 @@ uniform vec3  uTintRight;
 uniform float uUseSplitTint;
 uniform float uSplitRatio;
 uniform float uSplitSmoothness;
+uniform float uSplitVertical;
 
 uniform vec2  uMouse;
 uniform float uMouseStrength;
@@ -210,7 +211,8 @@ void main() {
     vec3 activeTint = uTint;
     if (uUseSplitTint > 0.5) {
       float halfSmooth = max(uSplitSmoothness * 0.5, 0.001);
-      float t = smoothstep(uSplitRatio - halfSmooth, uSplitRatio + halfSmooth, uv.x);
+      float coord = (uSplitVertical > 0.5) ? (1.0 - uv.y) : uv.x;
+      float t = smoothstep(uSplitRatio - halfSmooth, uSplitRatio + halfSmooth, coord);
       activeTint = mix(uTintLeft, uTintRight, t);
     }
 
@@ -260,6 +262,7 @@ export interface FaultyTerminalProps {
   tintRight?: string;
   splitRatio?: number;
   splitSmoothness?: number;
+  splitDirection?: "horizontal" | "vertical" | "auto";
   mouseReact?: boolean;
   mouseStrength?: number;
   dpr?: number;
@@ -288,6 +291,7 @@ export function FaultyTerminal({
   tintRight,
   splitRatio = 0.5,
   splitSmoothness = 0.04,
+  splitDirection = "auto",
   mouseReact = true,
   mouseStrength = 0.35,
   dpr,
@@ -371,6 +375,12 @@ export function FaultyTerminal({
     const geometry = new Triangle(gl);
     const initialWidth = container.offsetWidth || window.innerWidth || 300;
     const initialHeight = container.offsetHeight || window.innerHeight || 150;
+    const initialIsVertical =
+      splitDirection === "vertical"
+        ? true
+        : splitDirection === "horizontal"
+        ? false
+        : initialWidth < 768 || initialWidth < initialHeight;
 
     const program = new Program(gl, {
       vertex: VERTEX_SHADER,
@@ -396,6 +406,7 @@ export function FaultyTerminal({
         uUseSplitTint: { value: useSplit ? 1 : 0 },
         uSplitRatio: { value: splitRatio },
         uSplitSmoothness: { value: splitSmoothness },
+        uSplitVertical: { value: initialIsVertical ? 1 : 0 },
         uMouse: {
           value: new Float32Array([mouseCurrentRef.current.x, mouseCurrentRef.current.y]),
         },
@@ -421,6 +432,13 @@ export function FaultyTerminal({
         gl.canvas.height,
         gl.canvas.width / (gl.canvas.height || 1)
       );
+      const isVertical =
+        splitDirection === "vertical"
+          ? true
+          : splitDirection === "horizontal"
+          ? false
+          : w < 768 || w < h;
+      program.uniforms.uSplitVertical.value = isVertical ? 1 : 0;
     }
 
     const ro = new ResizeObserver(() => resize());
@@ -504,6 +522,7 @@ export function FaultyTerminal({
     useSplit,
     splitRatio,
     splitSmoothness,
+    splitDirection,
     mouseReact,
     mouseStrength,
     pageLoadAnimation,
